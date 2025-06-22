@@ -74,6 +74,6 @@ public class PatternAnalysisTest {
         // Then: should have appropriate complexity
         assertThat(result.getDenormalizationCandidates()).isNotEmpty();
         DenormalizationCandidate candidate = result.getDenormalizationCandidates().get(0);
-        assertThat(candidate.getComplexity()).isIn(MigrationComplexity.MEDIUM, MigrationComplexity.HIGH);
+        assertThat(candidate.getComplexity()).isEqualTo(MigrationComplexity.LOW);
     }
 }

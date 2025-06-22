@@ -66,7 +66,7 @@ public void shouldParseForeignKeyWhenReferencesClausePresent() {
 ```java
 /**
  * Parses SQL DDL and extracts database schema.
- * 
+ *
  * @param ddlContent SQL DDL statements
  * @return DatabaseSchema containing tables and relationships
  * @throws IllegalArgumentException if DDL is invalid
@@ -200,7 +200,7 @@ What I've tried: [steps taken]
 - Handle API failures gracefully
 - Consider response parsing variations
 - Document prompt changes
-- Support skip.ai mode for development/testing
+- Support -Dskip.ai=true for development/testing
 
 ### 3. Analysis Engine
 
@@ -339,13 +339,15 @@ mvn test
 # Run specific test class
 mvn test -Dtest=SchemaParserTest
 
-# Skip AI tests
-mvn test -Dskip.ai=true
+# Run minimal tests
+mvn test -Dtest=MinimalTests
 
-# Run with skip AI flag (no OpenAI key needed)
-java -Dskip.ai=true -jar target/dotnet-analyzer.jar schema.sql ./src/
+# Test with sample application (no OpenAI key needed)
+java -Dskip.ai=true -jar target/dotnet-aws-migration-analyzer-1.0.0-jar-with-dependencies.jar samples/TestEcommerceApp/schema.sql samples/TestEcommerceApp/
 
-java -jar target/dotnet-analyzer.jar schema.sql ./src/
+# Run with real AI recommendations
+export OPENAI_API_KEY=sk-...
+java -jar target/dotnet-aws-migration-analyzer-1.0.0-jar-with-dependencies.jar samples/TestEcommerceApp/schema.sql samples/TestEcommerceApp/
 ```
 
 ---

@@ -121,6 +121,35 @@ public class SchemaParserTest {
     }
 
     @Test
+    public void shouldHandleBracketedTableNameOrder() {
+        String ddl = """
+            CREATE TABLE [Order] (
+                Id int IDENTITY(1,1) PRIMARY KEY,
+                CustomerId int NOT NULL,
+                OrderDate datetime NOT NULL,
+                TotalAmount decimal(10,2) NOT NULL,
+                CONSTRAINT FK_Order_Customer FOREIGN KEY (CustomerId) 
+                    REFERENCES Customer(Id)
+            );
+            """;
+
+        DatabaseSchema schema = parser.parseDDL(ddl);
+
+        assertThat(schema.getTables()).hasSize(1);
+        
+        Table table = schema.getTables().get(0);
+        assertThat(table.getName()).isEqualTo("Order");
+        assertThat(table.getColumns()).hasSize(4);
+
+        Column idColumn = table.getColumns().stream()
+                .filter(c -> c.getName().equals("Id"))
+                .findFirst()
+                .orElse(null);
+        assertThat(idColumn).isNotNull();
+        assertThat(idColumn.isPrimaryKey()).isTrue();
+    }
+
+    @Test
     public void shouldHandleTableLevelForeignKeyConstraints() {
         String ddl = """
             CREATE TABLE OrderItem (

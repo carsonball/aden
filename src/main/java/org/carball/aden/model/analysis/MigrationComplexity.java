@@ -14,11 +14,12 @@ public enum MigrationComplexity {
     }
 
     public static MigrationComplexity fromScore(int score) {
-        for (MigrationComplexity complexity : values()) {
-            if (score >= complexity.minScore && score <= complexity.maxScore) {
-                return complexity;
-            }
+        if (score <= LOW.maxScore) {
+            return LOW;
+        } else if (score <= MEDIUM.maxScore) {
+            return MEDIUM;
+        } else {
+            return HIGH;
         }
-        return HIGH;
     }
 }

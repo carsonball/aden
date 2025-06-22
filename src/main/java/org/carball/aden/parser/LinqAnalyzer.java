@@ -18,7 +18,7 @@ public class LinqAnalyzer {
             Pattern.compile("\\.Include\\s*\\(\\s*(?:\\w+\\s*=>\\s*)?\\w+\\.(\\w+)\\s*\\)");
 
     private static final Pattern CHAINED_INCLUDE_PATTERN =
-            Pattern.compile("(\\.Include\\s*\\([^)]+\\)(?:\\s*\\.ThenInclude\\s*\\([^)]+\\))*){2,}");
+            Pattern.compile("(?:\\s*\\.Include\\s*\\([^)]+\\)(?:\\s*\\.ThenInclude\\s*\\([^)]+\\))*){2,}", Pattern.DOTALL);
 
     private static final Pattern THEN_INCLUDE_PATTERN =
             Pattern.compile("\\.ThenInclude\\s*\\(\\s*(?:\\w+\\s*=>\\s*)?\\w+\\.(\\w+)\\s*\\)");

@@ -28,8 +28,11 @@ public class SchemaParser {
         DatabaseSchema schema = new DatabaseSchema();
 
         try {
+            // Preprocess DDL to handle SQL Server bracket syntax
+            String processedDDL = preprocessDDL(ddlContent);
+            
             // Parse all statements in the DDL
-            Statements statements = CCJSqlParserUtil.parseStatements(ddlContent);
+            Statements statements = CCJSqlParserUtil.parseStatements(processedDDL);
 
             // First pass: Create all tables
             for (Statement statement : statements.getStatements()) {
@@ -55,6 +58,26 @@ public class SchemaParser {
         }
 
         return schema;
+    }
+
+    private String preprocessDDL(String ddlContent) {
+        // Remove SQL Server bracket identifiers to make DDL compatible with JSqlParser
+        // This handles cases like CREATE TABLE [Order] and REFERENCES [Order](Id)
+        String processed = ddlContent.replaceAll("\\[([^\\]]+)\\]", "$1");
+        
+        // Handle SQL Server function calls in DEFAULT clauses that JSqlParser doesn't support
+        // Replace DEFAULT (FUNCTION()) with DEFAULT 'FUNCTION()' to make it parseable
+        processed = processed.replaceAll("DEFAULT\\s*\\(([A-Z_]+\\(\\))\\)", "DEFAULT '$1'");
+        
+        // Remove SQL Server specific keywords that JSqlParser doesn't understand
+        // Remove CLUSTERED and NONCLUSTERED from PRIMARY KEY and other constraints
+        processed = processed.replaceAll("\\bCLUSTERED\\b", "");
+        processed = processed.replaceAll("\\bNONCLUSTERED\\b", "");
+        
+        // Clean up extra spaces that might result from keyword removal
+        processed = processed.replaceAll("\\s+", " ");
+        
+        return processed;
     }
 
     private org.carball.aden.model.schema.Table convertTable(CreateTable createTable) {
@@ -90,10 +113,18 @@ public class SchemaParser {
 
         // Process column specifications
         if (colDef.getColumnSpecs() != null) {
-            for (String spec : colDef.getColumnSpecs()) {
+            List<String> specs = colDef.getColumnSpecs();
+            for (int i = 0; i < specs.size(); i++) {
+                String spec = specs.get(i);
                 String upperSpec = spec.toUpperCase();
 
                 if (upperSpec.contains("NOT") && upperSpec.contains("NULL")) {
+                    builder.nullable(false);
+                } else if (upperSpec.equals("NOT NULL")) {
+                    builder.nullable(false);
+                } else if (upperSpec.equals("NOT") && i + 1 < specs.size() && 
+                          specs.get(i + 1).toUpperCase().equals("NULL")) {
+                    // Handle "NOT" "NULL" as separate specs
                     builder.nullable(false);
                 } else if (upperSpec.equals("PRIMARY") || upperSpec.contains("PRIMARY KEY")) {
                     builder.primaryKey(true);
@@ -181,39 +212,63 @@ public class SchemaParser {
     private void extractForeignKeyFromSpecs(String tableName, ColumnDefinition colDef, DatabaseSchema schema) {
         String columnName = cleanIdentifier(colDef.getColumnName());
 
-        for (String spec : colDef.getColumnSpecs()) {
-            if (spec.toUpperCase().contains("REFERENCES")) {
-                // Parse REFERENCES clause
+
+        List<String> specs = colDef.getColumnSpecs();
+        for (int i = 0; i < specs.size(); i++) {
+            String spec = specs.get(i);
+            
+            // Check for inline REFERENCES in single spec (legacy format) - only if it contains more than just "REFERENCES"
+            if (spec.toUpperCase().contains("REFERENCES") && !spec.trim().equalsIgnoreCase("REFERENCES")) {
+                // Parse REFERENCES clause within single spec
                 String[] parts = spec.split("\\s+");
-                for (int i = 0; i < parts.length - 1; i++) {
-                    if (parts[i].equalsIgnoreCase("REFERENCES")) {
-                        String referencedTable = cleanIdentifier(parts[i + 1]);
+                for (int j = 0; j < parts.length - 1; j++) {
+                    if (parts[j].equalsIgnoreCase("REFERENCES")) {
+                        String referencedTable = cleanIdentifier(parts[j + 1]);
                         String referencedColumn = "Id"; // Default assumption
 
                         // Check if column is specified
-                        if (i + 2 < parts.length && parts[i + 2].startsWith("(")) {
+                        if (j + 2 < parts.length && parts[j + 2].startsWith("(")) {
                             referencedColumn = cleanIdentifier(
-                                    parts[i + 2].replaceAll("[()]", ""));
+                                    parts[j + 2].replaceAll("[()]", ""));
                         }
 
-                        Relationship relationship = Relationship.builder()
-                                .name("FK_" + tableName + "_" + referencedTable)
-                                .fromTable(tableName)
-                                .fromColumn(columnName)
-                                .toTable(referencedTable)
-                                .toColumn(referencedColumn)
-                                .type(RelationshipType.MANY_TO_ONE)
-                                .build();
-
-                        schema.addRelationship(relationship);
-
-                        // Update column metadata
-                        updateColumnForeignKey(schema, tableName, columnName, referencedTable, referencedColumn);
-                        break;
+                        createForeignKeyRelationship(schema, tableName, columnName, referencedTable, referencedColumn);
+                        return; // Found and processed, exit
                     }
                 }
             }
+            // Check for REFERENCES as separate spec (JSqlParser tokenized format)
+            else if (spec.equalsIgnoreCase("REFERENCES") && i + 1 < specs.size()) {
+                String referencedTable = cleanIdentifier(specs.get(i + 1));
+                String referencedColumn = "Id"; // Default assumption
+                
+                // Check if column is specified in next spec
+                if (i + 2 < specs.size() && specs.get(i + 2).startsWith("(")) {
+                    referencedColumn = cleanIdentifier(
+                            specs.get(i + 2).replaceAll("[()]", ""));
+                }
+                
+                createForeignKeyRelationship(schema, tableName, columnName, referencedTable, referencedColumn);
+                return; // Found and processed, exit
+            }
         }
+    }
+
+    private void createForeignKeyRelationship(DatabaseSchema schema, String tableName, String columnName, 
+                                            String referencedTable, String referencedColumn) {
+        Relationship relationship = Relationship.builder()
+                .name("FK_" + tableName + "_" + referencedTable)
+                .fromTable(tableName)
+                .fromColumn(columnName)
+                .toTable(referencedTable)
+                .toColumn(referencedColumn)
+                .type(RelationshipType.MANY_TO_ONE)
+                .build();
+
+        schema.addRelationship(relationship);
+
+        // Update column metadata
+        updateColumnForeignKey(schema, tableName, columnName, referencedTable, referencedColumn);
     }
 
     private void processForeignKey(String tableName, ForeignKeyIndex fkIndex, DatabaseSchema schema) {
