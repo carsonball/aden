@@ -273,34 +273,60 @@ public class DotNetPatternAnalyzer {
     private int calculateScore(EntityUsageProfile profile) {
         int score = 0;
 
-        // Eager loading frequency contributes most to score
+        // Eager loading frequency contributes most to score (max 100 points)
         score += Math.min(profile.getEagerLoadingCount(), 100);
 
-        // Always loaded entities
-        score += profile.getAlwaysLoadedWithEntities().size() * 10;
+        // Always loaded entities (max 30 points - 10 per entity, up to 3)
+        score += Math.min(profile.getAlwaysLoadedWithEntities().size() * 10, 30);
 
-        // Read/write ratio
+        // Read/write ratio (max 20 points)
         if (profile.getReadToWriteRatio() > HIGH_READ_WRITE_RATIO) {
             score += 20;
+        } else if (profile.getReadToWriteRatio() > 5) {
+            score += 10;
         }
 
-        // Query complexity
+        // Query complexity (max 25 points - 5 per complex query, up to 5)
         long complexQueries = profile.getQueryPatterns().stream()
                 .filter(p -> p.getQueryType() == QueryType.COMPLEX_EAGER_LOADING)
                 .count();
-        score += complexQueries * 5;
+        score += Math.min(complexQueries * 5, 25);
 
-        // Bonus for simple key-based access
+        // Bonus for simple key-based access (15 points)
         if (profile.hasSimpleKeyBasedAccess()) {
             score += 15;
         }
 
-        // Penalty for complex relationships
+        // Penalty for complex relationships (up to -20 points)
         if (profile.hasComplexRelationships()) {
             score -= 10;
         }
 
-        return Math.max(score, 0); // Ensure non-negative score
+        if (profile.getEntity().hasCircularReferences()) {
+            score -= 10;
+        }
+
+        // Maximum theoretical score: 100 + 30 + 20 + 25 + 15 = 190
+        // Minimum score: 0 (ensured below)
+        return Math.max(score, 0);
+    }
+
+    /**
+     * Interprets the migration score into a recommendation category.
+     *
+     * Score ranges:
+     * 150+ = Excellent candidate (migrate immediately)
+     * 100-149 = Strong candidate (high priority)
+     * 60-99 = Good candidate (medium priority)
+     * 30-59 = Fair candidate (low priority)
+     * 0-29 = Poor candidate (reconsider approach)
+     */
+    public static String interpretScore(int score) {
+        if (score >= 150) return "Excellent candidate - migrate immediately";
+        if (score >= 100) return "Strong candidate - high priority";
+        if (score >= 60) return "Good candidate - medium priority";
+        if (score >= 30) return "Fair candidate - low priority";
+        return "Poor candidate - reconsider approach";
     }
 
     private NoSQLTarget selectOptimalTarget(EntityUsageProfile profile) {

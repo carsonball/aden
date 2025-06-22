@@ -64,12 +64,23 @@ public class MigrationReport {
         md.append("| Denormalization Candidates | ").append(analysisResult.getDenormalizationCandidates().size()).append(" |\n");
         md.append("| Recommendations Generated | ").append(recommendations.size()).append(" |\n\n");
 
+        // Scoring Guide
+        md.append("### Migration Score Guide\n\n");
+        md.append("| Score Range | Priority | Description |\n");
+        md.append("|-------------|----------|-------------|\n");
+        md.append("| 150+ | 🔴 **Immediate** | Excellent candidate - migrate immediately |\n");
+        md.append("| 100-149 | 🟠 **High** | Strong candidate - high priority |\n");
+        md.append("| 60-99 | 🟡 **Medium** | Good candidate - medium priority |\n");
+        md.append("| 30-59 | 🟢 **Low** | Fair candidate - low priority |\n");
+        md.append("| 0-29 | ⚪ **Reconsider** | Poor candidate - reconsider approach |\n\n");
+
         // Migration Candidates
         md.append("## Migration Candidates\n\n");
         for (DenormalizationCandidate candidate : analysisResult.getDenormalizationCandidates()) {
             md.append("### ").append(candidate.getPrimaryEntity()).append("\n\n");
             md.append("- **Complexity:** ").append(candidate.getComplexity()).append("\n");
-            md.append("- **Score:** ").append(candidate.getScore()).append("\n");
+            md.append("- **Score:** ").append(candidate.getScore())
+                    .append(" (").append(candidate.getScoreInterpretation()).append(")\n");
             md.append("- **Reason:** ").append(candidate.getReason()).append("\n");
             md.append("- **Related Entities:** ").append(String.join(", ", candidate.getRelatedEntities())).append("\n");
             md.append("- **Recommended Target:** ").append(candidate.getRecommendedTarget().getDisplayName()).append("\n\n");
