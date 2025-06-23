@@ -145,6 +145,8 @@ java -Dskip.ai=true -jar target/dotnet-analyzer.jar \
     "primaryEntity": "Customer",
     "relatedEntities": ["Orders", "OrderItems"],
     "complexity": "MEDIUM",
+    "score": 135,
+    "scoreInterpretation": "Strong candidate - high priority",
     "recommendation": {
       "targetService": "DynamoDB",
       "partitionKey": {
@@ -160,10 +162,30 @@ java -Dskip.ai=true -jar target/dotnet-analyzer.jar \
 ### Markdown Report
 The tool generates comprehensive Markdown reports with:
 - Executive summary
+- Migration score guide with priority levels
 - Detailed migration recommendations
 - Key design specifications
 - Cost analysis
 - Next steps
+
+#### Migration Scoring System
+The tool uses a comprehensive scoring system (0-190 points) to prioritize migrations:
+
+| Score Range | Priority | Description |
+|-------------|----------|-------------|
+| 150+ | 🔴 **Immediate** | Excellent candidate - migrate immediately |
+| 100-149 | 🟠 **High** | Strong candidate - high priority |
+| 60-99 | 🟡 **Medium** | Good candidate - medium priority |
+| 30-59 | 🟢 **Low** | Fair candidate - low priority |
+| 0-29 | ⚪ **Reconsider** | Poor candidate - reconsider approach |
+
+Scores are calculated based on:
+- Eager loading frequency (up to 100 points)
+- Related entities always loaded together (up to 30 points)
+- Read-heavy access patterns (up to 20 points)
+- Query complexity (up to 25 points)
+- Bonus for simple key-based access (15 points)
+- Penalties for circular references or complex relationships
 
 ## 🧪 Testing
 
