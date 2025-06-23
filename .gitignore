@@ -59,3 +59,7 @@ samples/**/.vs/
 
 # Logs
 *.log
+
+# Aden
+recommendations.md
+recommendations.json

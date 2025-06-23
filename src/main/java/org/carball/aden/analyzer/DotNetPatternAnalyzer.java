@@ -22,7 +22,8 @@ public class DotNetPatternAnalyzer {
 
     public AnalysisResult analyzePatterns(List<EntityModel> entities,
                                           List<QueryPattern> queryPatterns,
-                                          DatabaseSchema schema) {
+                                          DatabaseSchema schema,
+                                          Map<String, String> dbSetMapping) {
 
         log.info("Analyzing patterns for {} entities and {} query patterns",
                 entities.size(), queryPatterns.size());
@@ -30,7 +31,7 @@ public class DotNetPatternAnalyzer {
         AnalysisResult result = new AnalysisResult();
 
         // Build usage profiles
-        Map<String, EntityUsageProfile> usageProfiles = buildUsageProfiles(entities, queryPatterns);
+        Map<String, EntityUsageProfile> usageProfiles = buildUsageProfiles(entities, queryPatterns, dbSetMapping);
 
         // Analyze relationships and access patterns
         analyzeRelationshipPatterns(usageProfiles, schema);
@@ -40,7 +41,7 @@ public class DotNetPatternAnalyzer {
                 usageProfiles, schema);
 
         // Perform complexity analysis
-        ComplexityAnalysis complexityAnalysis = performComplexityAnalysis(entities, queryPatterns, schema);
+        ComplexityAnalysis complexityAnalysis = performComplexityAnalysis(entities, queryPatterns, schema, dbSetMapping);
 
         result.setDenormalizationCandidates(candidates);
         result.setUsageProfiles(usageProfiles);
@@ -53,7 +54,7 @@ public class DotNetPatternAnalyzer {
     }
 
     private Map<String, EntityUsageProfile> buildUsageProfiles(
-            List<EntityModel> entities, List<QueryPattern> queryPatterns) {
+            List<EntityModel> entities, List<QueryPattern> queryPatterns, Map<String, String> dbSetMapping) {
 
         Map<String, EntityUsageProfile> profiles = new HashMap<>();
 
@@ -64,7 +65,7 @@ public class DotNetPatternAnalyzer {
 
         // Populate usage data from query patterns
         for (QueryPattern pattern : queryPatterns) {
-            String entityName = extractEntityName(pattern.getTargetEntity());
+            String entityName = extractEntityName(pattern.getTargetEntity(), dbSetMapping);
             EntityUsageProfile profile = profiles.get(entityName);
 
             if (profile != null) {
@@ -93,11 +94,19 @@ public class DotNetPatternAnalyzer {
         return profiles;
     }
 
-    private String extractEntityName(String targetEntity) {
+    private String extractEntityName(String targetEntity, Map<String, String> dbSetMapping) {
         // Handle patterns like "Customer.Orders" or "Customer.nested.OrderItems"
         if (targetEntity.contains(".")) {
             return targetEntity.substring(0, targetEntity.indexOf("."));
         }
+        
+        // Use DbSet mapping to convert property name to entity name
+        String mappedEntity = dbSetMapping.get(targetEntity);
+        if (mappedEntity != null) {
+            return mappedEntity;
+        }
+        
+        // Fall back to original value if no mapping found
         return targetEntity;
     }
 
@@ -374,12 +383,13 @@ public class DotNetPatternAnalyzer {
 
     private ComplexityAnalysis performComplexityAnalysis(List<EntityModel> entities,
                                                          List<QueryPattern> queryPatterns,
-                                                         DatabaseSchema schema) {
+                                                         DatabaseSchema schema,
+                                                         Map<String, String> dbSetMapping) {
         Map<String, Integer> entityComplexityScores = new HashMap<>();
         int totalComplexity = 0;
 
         for (EntityModel entity : entities) {
-            int score = calculateEntityComplexity(entity, queryPatterns, schema);
+            int score = calculateEntityComplexity(entity, queryPatterns, schema, dbSetMapping);
             entityComplexityScores.put(entity.getClassName(), score);
             totalComplexity += score;
         }
@@ -396,7 +406,8 @@ public class DotNetPatternAnalyzer {
 
     private int calculateEntityComplexity(EntityModel entity,
                                           List<QueryPattern> queryPatterns,
-                                          DatabaseSchema schema) {
+                                          DatabaseSchema schema,
+                                          Map<String, String> dbSetMapping) {
         int complexity = 0;
 
         // Navigation properties
@@ -409,7 +420,7 @@ public class DotNetPatternAnalyzer {
 
         // Query patterns involving this entity
         long entityQueries = queryPatterns.stream()
-                .filter(p -> extractEntityName(p.getTargetEntity()).equals(entity.getClassName()))
+                .filter(p -> extractEntityName(p.getTargetEntity(), dbSetMapping).equals(entity.getClassName()))
                 .count();
         complexity += entityQueries;
 

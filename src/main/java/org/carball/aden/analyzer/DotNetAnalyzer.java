@@ -16,6 +16,7 @@ import org.carball.aden.parser.SchemaParser;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -68,7 +69,8 @@ public class DotNetAnalyzer {
         if (config.isVerbose()) {
             System.out.println("  - Correlating patterns and scoring complexity...");
         }
-        AnalysisResult result = patternAnalyzer.analyzePatterns(entities, queryPatterns, schema);
+        Map<String, String> dbSetMapping = efParser.getDbSetPropertyToEntityMap();
+        AnalysisResult result = patternAnalyzer.analyzePatterns(entities, queryPatterns, schema, dbSetMapping);
 
         // Step 5: Apply filters
         result.setDenormalizationCandidates(

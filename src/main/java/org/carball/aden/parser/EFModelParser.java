@@ -5,15 +5,15 @@ import org.carball.aden.model.entity.*;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 @Slf4j
 public class EFModelParser {
+
+    private Map<String, String> dbSetPropertyToEntityMap = new HashMap<>();
 
     private static final Pattern CLASS_PATTERN =
             Pattern.compile("public\\s+(?:partial\\s+)?class\\s+(\\w+)(?:\\s*:\\s*([\\w\\s,]+))?");
@@ -30,6 +30,9 @@ public class EFModelParser {
     private static final Pattern DATA_ANNOTATION_PATTERN =
             Pattern.compile("\\[(\\w+)(?:\\(([^)]+)\\))?\\]");
 
+    private static final Pattern DBSET_PATTERN =
+            Pattern.compile("public\\s+DbSet<(\\w+)>\\s+(\\w+)\\s*\\{\\s*get;\\s*set;\\s*\\}");
+
     private static final List<String> PRIMITIVE_TYPES = Arrays.asList(
             "string", "int", "long", "bool", "boolean", "DateTime", "DateTimeOffset",
             "decimal", "double", "float", "Guid", "byte", "short", "char",
@@ -45,6 +48,12 @@ public class EFModelParser {
                     .forEach(path -> {
                         try {
                             String content = Files.readString(path);
+                            
+                            // Parse DbContext files for DbSet mappings
+                            if (isDbContextFile(content)) {
+                                parseDbContextMappings(content, path.getFileName().toString());
+                            }
+                            
                             EntityModel entity = parseEntityFromContent(content, path.getFileName().toString());
                             if (entity != null && !entity.getNavigationProperties().isEmpty()) {
                                 entities.add(entity);
@@ -223,5 +232,23 @@ public class EFModelParser {
                 entity.setType(EntityType.LOOKUP);
             }
         }
+    }
+
+    private boolean isDbContextFile(String content) {
+        return content.contains("DbContext") && content.contains("DbSet<");
+    }
+
+    private void parseDbContextMappings(String content, String fileName) {
+        Matcher matcher = DBSET_PATTERN.matcher(content);
+        while (matcher.find()) {
+            String entityType = matcher.group(1);
+            String propertyName = matcher.group(2);
+            dbSetPropertyToEntityMap.put(propertyName, entityType);
+            log.debug("Found DbSet mapping: {} -> {} in {}", propertyName, entityType, fileName);
+        }
+    }
+
+    public Map<String, String> getDbSetPropertyToEntityMap() {
+        return new HashMap<>(dbSetPropertyToEntityMap);
     }
 }

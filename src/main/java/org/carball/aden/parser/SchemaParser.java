@@ -3,11 +3,9 @@ package org.carball.aden.parser;
 import lombok.extern.slf4j.Slf4j;
 import net.sf.jsqlparser.JSQLParserException;
 import net.sf.jsqlparser.parser.CCJSqlParserUtil;
-import net.sf.jsqlparser.schema.Table;
 import net.sf.jsqlparser.statement.Statement;
 import net.sf.jsqlparser.statement.Statements;
 import net.sf.jsqlparser.statement.create.table.*;
-import net.sf.jsqlparser.statement.create.table.Index;
 import org.carball.aden.model.schema.*;
 
 import java.io.IOException;
@@ -93,7 +91,7 @@ public class SchemaParser {
 
         // Process table constraints (primary keys, etc.)
         if (createTable.getIndexes() != null) {
-            for (Index index : createTable.getIndexes()) {
+            for (net.sf.jsqlparser.statement.create.table.Index index : createTable.getIndexes()) {
                 if ("PRIMARY KEY".equalsIgnoreCase(index.getType())) {
                     processPrimaryKey(index, table);
                 } else {
@@ -140,9 +138,9 @@ public class SchemaParser {
         return builder.build();
     }
 
-    private void processPrimaryKey(Index index, org.carball.aden.model.schema.Table table) {
+    private void processPrimaryKey(net.sf.jsqlparser.statement.create.table.Index index, org.carball.aden.model.schema.Table table) {
         List<String> pkColumns = index.getColumns().stream()
-                .map(Index.ColumnParams::getColumnName)
+                .map(net.sf.jsqlparser.statement.create.table.Index.ColumnParams::getColumnName)
                 .map(this::cleanIdentifier)
                 .collect(Collectors.toList());
 
@@ -169,9 +167,9 @@ public class SchemaParser {
         }
     }
 
-    private void processIndex(Index index, org.carball.aden.model.schema.Table table) {
+    private void processIndex(net.sf.jsqlparser.statement.create.table.Index index, org.carball.aden.model.schema.Table table) {
         List<String> indexColumns = index.getColumns().stream()
-                .map(Index.ColumnParams::getColumnName)
+                .map(net.sf.jsqlparser.statement.create.table.Index.ColumnParams::getColumnName)
                 .map(this::cleanIdentifier)
                 .collect(Collectors.toList());
 
@@ -200,7 +198,7 @@ public class SchemaParser {
 
         // Check table-level foreign key constraints
         if (createTable.getIndexes() != null) {
-            for (Index index : createTable.getIndexes()) {
+            for (net.sf.jsqlparser.statement.create.table.Index index : createTable.getIndexes()) {
                 if (index instanceof ForeignKeyIndex) {
                     ForeignKeyIndex fkIndex = (ForeignKeyIndex) index;
                     processForeignKey(tableName, fkIndex, schema);
@@ -273,7 +271,7 @@ public class SchemaParser {
 
     private void processForeignKey(String tableName, ForeignKeyIndex fkIndex, DatabaseSchema schema) {
         String fkName = fkIndex.getName() != null ? fkIndex.getName() : "FK_" + tableName;
-        Table referencedTable = fkIndex.getTable();
+        net.sf.jsqlparser.schema.Table referencedTable = fkIndex.getTable();
         List<String> fromColumns = fkIndex.getColumnsNames();
         List<String> toColumns = fkIndex.getReferencedColumnNames();
 
@@ -315,7 +313,7 @@ public class SchemaParser {
         }
     }
 
-    private String cleanTableName(Table table) {
+    private String cleanTableName(net.sf.jsqlparser.schema.Table table) {
         if (table.getSchemaName() != null) {
             // For tables like [dbo].[Customer], just return Customer
             return cleanIdentifier(table.getName());

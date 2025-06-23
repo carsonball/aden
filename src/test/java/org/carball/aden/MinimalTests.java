@@ -19,6 +19,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -149,7 +150,8 @@ public class MinimalTests {
         AnalysisResult result = analyzer.analyzePatterns(
                 List.of(customer),
                 List.of(pattern),
-                schema
+                schema,
+                Map.of()
         );
 
         // Then

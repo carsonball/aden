@@ -9,7 +9,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -37,7 +39,8 @@ public class PatternAnalysisTest {
         AnalysisResult result = analyzer.analyzePatterns(
                 Arrays.asList(customer),
                 Arrays.asList(pattern),
-                mockSchema
+                mockSchema,
+                new HashMap<>()
         );
 
         // Then: should recommend denormalization
@@ -68,12 +71,120 @@ public class PatternAnalysisTest {
         AnalysisResult result = analyzer.analyzePatterns(
                 Arrays.asList(order),
                 patterns,
-                mockSchema
+                mockSchema,
+                new HashMap<>()
         );
 
         // Then: should have appropriate complexity
         assertThat(result.getDenormalizationCandidates()).isNotEmpty();
         DenormalizationCandidate candidate = result.getDenormalizationCandidates().get(0);
         assertThat(candidate.getComplexity()).isEqualTo(MigrationComplexity.LOW);
+    }
+
+    @Test
+    public void shouldUseDbSetMappingToMatchQueryPatternsWithEntities() {
+        // Given: Entity with specific name
+        EntityModel customer = new EntityModel("Customer", "Customer.cs");
+        customer.getNavigationProperties().add(
+                new NavigationProperty("Orders", "Order", NavigationType.ONE_TO_MANY)
+        );
+
+        // Given: Query pattern using DbContext property name (plural)
+        QueryPattern pattern = new QueryPattern(
+                "EAGER_LOADING",
+                "Customers",  // DbContext property name (plural)
+                51,  // High frequency to exceed threshold
+                "CustomerService.cs"
+        );
+        pattern.setQueryType(QueryType.EAGER_LOADING);
+
+        // Given: DbSet mapping that maps property to entity
+        Map<String, String> dbSetMapping = new HashMap<>();
+        dbSetMapping.put("Customers", "Customer");  // Property -> Entity mapping
+
+        // When: analyzing patterns with DbSet mapping
+        DatabaseSchema mockSchema = new DatabaseSchema();
+        AnalysisResult result = analyzer.analyzePatterns(
+                Arrays.asList(customer),
+                Arrays.asList(pattern),
+                mockSchema,
+                dbSetMapping
+        );
+
+        // Then: should match query pattern to entity correctly
+        assertThat(result.getDenormalizationCandidates()).hasSize(1);
+        DenormalizationCandidate candidate = result.getDenormalizationCandidates().get(0);
+        assertThat(candidate.getPrimaryEntity()).isEqualTo("Customer");
+    }
+
+    @Test
+    public void shouldHandleMismatchedDbSetMappings() {
+        // Given: Entity with one name
+        EntityModel order = new EntityModel("Order", "Order.cs");
+        order.getNavigationProperties().add(
+                new NavigationProperty("OrderItems", "OrderItem", NavigationType.ONE_TO_MANY)
+        );
+
+        // Given: Query pattern using non-standard DbContext property name
+        QueryPattern pattern = new QueryPattern(
+                "EAGER_LOADING",
+                "PurchaseHistory",  // Non-standard property name
+                51,  // High frequency to exceed threshold
+                "OrderService.cs"
+        );
+        pattern.setQueryType(QueryType.EAGER_LOADING);
+
+        // Given: DbSet mapping with non-standard property names
+        Map<String, String> dbSetMapping = new HashMap<>();
+        dbSetMapping.put("PurchaseHistory", "Order");  // Non-standard mapping
+
+        // When: analyzing patterns
+        DatabaseSchema mockSchema = new DatabaseSchema();
+        AnalysisResult result = analyzer.analyzePatterns(
+                Arrays.asList(order),
+                Arrays.asList(pattern),
+                mockSchema,
+                dbSetMapping
+        );
+
+        // Then: should still match correctly using the mapping
+        assertThat(result.getDenormalizationCandidates()).hasSize(1);
+        DenormalizationCandidate candidate = result.getDenormalizationCandidates().get(0);
+        assertThat(candidate.getPrimaryEntity()).isEqualTo("Order");
+    }
+
+    @Test
+    public void shouldHandleQueryPatternsWithoutDbSetMapping() {
+        // Given: Entity
+        EntityModel customer = new EntityModel("Customer", "Customer.cs");
+        customer.getNavigationProperties().add(
+                new NavigationProperty("Orders", "Order", NavigationType.ONE_TO_MANY)
+        );
+
+        // Given: Query pattern with entity name directly (no DbContext property)
+        QueryPattern pattern = new QueryPattern(
+                "EAGER_LOADING",
+                "Customer",  // Direct entity name
+                51,  // High frequency to exceed threshold
+                "CustomerService.cs"
+        );
+        pattern.setQueryType(QueryType.EAGER_LOADING);
+
+        // Given: Empty DbSet mapping
+        Map<String, String> dbSetMapping = new HashMap<>();
+
+        // When: analyzing patterns
+        DatabaseSchema mockSchema = new DatabaseSchema();
+        AnalysisResult result = analyzer.analyzePatterns(
+                Arrays.asList(customer),
+                Arrays.asList(pattern),
+                mockSchema,
+                dbSetMapping
+        );
+
+        // Then: should fall back to direct matching
+        assertThat(result.getDenormalizationCandidates()).hasSize(1);
+        DenormalizationCandidate candidate = result.getDenormalizationCandidates().get(0);
+        assertThat(candidate.getPrimaryEntity()).isEqualTo("Customer");
     }
 }
