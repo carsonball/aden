@@ -4,6 +4,7 @@ package org.carball.aden;
 import org.carball.aden.analyzer.DotNetAnalyzer;
 import org.carball.aden.analyzer.DotNetPatternAnalyzer;
 import org.carball.aden.config.DotNetAnalyzerConfig;
+import org.carball.aden.config.MigrationThresholds;
 import org.carball.aden.model.analysis.AnalysisResult;
 import org.carball.aden.model.analysis.NoSQLTarget;
 import org.carball.aden.model.entity.EntityModel;
@@ -144,7 +145,8 @@ public class MinimalTests {
         );
         pattern.setQueryType(org.carball.aden.model.query.QueryType.EAGER_LOADING);
 
-        DotNetPatternAnalyzer analyzer = new DotNetPatternAnalyzer();
+        MigrationThresholds thresholds = MigrationThresholds.defaults();
+        DotNetPatternAnalyzer analyzer = new DotNetPatternAnalyzer(thresholds);
 
         // When
         AnalysisResult result = analyzer.analyzePatterns(

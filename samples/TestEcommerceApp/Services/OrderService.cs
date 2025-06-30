@@ -34,5 +34,40 @@ namespace TestEcommerceApp.Services
                 .Take(10)
                 .ToList();
         }
+
+        // Additional query patterns for higher frequency
+        public List<Order> GetOrdersWithCustomerProfiles()
+        {
+            return _context.Orders
+                .Include(o => o.Customer)
+                .Include(o => o.Customer.Profile)
+                .ToList();
+        }
+
+        public Order GetOrderWithAllDetails(int orderId)
+        {
+            return _context.Orders
+                .Include(o => o.Customer)
+                .Include(o => o.Customer.Profile)
+                .Include(o => o.OrderItems)
+                .Include(o => o.OrderItems.Select(oi => oi.Product))
+                .FirstOrDefault(o => o.Id == orderId);
+        }
+
+        public List<Order> GetOrdersWithItems()
+        {
+            return _context.Orders
+                .Include(o => o.OrderItems)
+                .Include(o => o.OrderItems.Select(oi => oi.Product))
+                .ToList();
+        }
+
+        public List<Order> GetOrdersWithCustomers()
+        {
+            return _context.Orders
+                .Include(o => o.Customer)
+                .Include(o => o.Customer.Profile)
+                .ToList();
+        }
     }
 }

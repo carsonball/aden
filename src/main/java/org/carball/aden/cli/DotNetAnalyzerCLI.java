@@ -2,9 +2,7 @@ package org.carball.aden.cli;
 
 import lombok.extern.slf4j.Slf4j;
 import org.carball.aden.analyzer.DotNetAnalyzer;
-import org.carball.aden.config.DotNetAnalyzerConfig;
-import org.carball.aden.config.OutputFormat;
-import org.carball.aden.config.ComplexityFilter;
+import org.carball.aden.config.*;
 import org.carball.aden.model.analysis.AnalysisResult;
 import org.carball.aden.model.analysis.NoSQLTarget;
 import org.carball.aden.model.recommendation.NoSQLRecommendation;
@@ -32,20 +30,35 @@ public class DotNetAnalyzerCLI {
         System.out.println(String.format(BANNER, VERSION));
 
         if (args.length < 2 || isHelpRequested(args)) {
-            printUsage();
+            if (Arrays.asList(args).contains("--help-profiles")) {
+                System.out.println(MigrationProfile.getProfileHelp());
+            } else if (Arrays.asList(args).contains("--help-thresholds")) {
+                System.out.println(ConfigurationLoader.getThresholdHelp());
+            } else {
+                printUsage();
+            }
             System.exit(args.length < 2 ? 1 : 0);
         }
 
         try {
             DotNetAnalyzerConfig config = parseArgs(args);
+            
+            // Handle config generation
+            if (config.isGenerateConfig()) {
+                generateConfigFile(config, args);
+                return;
+            }
 
             System.out.println("\n🔍 Starting analysis...");
             System.out.println("   Schema file: " + config.getSchemaFile());
             System.out.println("   Source directory: " + config.getSourceDirectory());
             System.out.println("   Output: " + config.getOutputFile());
+            if (config.getMigrationProfile() != null) {
+                System.out.println("   Migration profile: " + config.getMigrationProfile());
+            }
             System.out.println();
 
-            DotNetAnalyzer analyzer = new DotNetAnalyzer(config);
+            DotNetAnalyzer analyzer = new DotNetAnalyzer(config, args);
 
             // Step 1: Analyze
             System.out.print("📊 Analyzing .NET Framework application... ");
@@ -72,6 +85,15 @@ public class DotNetAnalyzerCLI {
                 String markdownFile = config.getOutputFile().replace(".json", ".md");
                 System.out.println("   Markdown report: " + markdownFile);
             }
+            
+            // Provide profile suggestions if no candidates found
+            if (recommendations.isEmpty()) {
+                System.out.println("\n💡 No migration candidates found. This might be due to threshold settings.");
+                System.out.println("   Consider using a different profile:");
+                System.out.println("   - For small applications: --profile startup-aggressive");
+                System.out.println("   - For discovery: --profile discovery");
+                System.out.println("   - Or use --help-thresholds for manual tuning");
+            }
 
         } catch (IllegalArgumentException e) {
             System.err.println("\n❌ Configuration error: " + e.getMessage());
@@ -97,7 +119,9 @@ public class DotNetAnalyzerCLI {
     private static boolean isHelpRequested(String[] args) {
         return Arrays.asList(args).contains("--help") ||
                 Arrays.asList(args).contains("-h") ||
-                Arrays.asList(args).contains("help");
+                Arrays.asList(args).contains("help") ||
+                Arrays.asList(args).contains("--help-profiles") ||
+                Arrays.asList(args).contains("--help-thresholds");
     }
 
     private static void printUsage() {
@@ -117,18 +141,38 @@ public class DotNetAnalyzerCLI {
         System.out.println("  --debug             Enable debug output");
         System.out.println("  --help, -h          Show this help message");
         System.out.println();
+        System.out.println("Migration Configuration:");
+        System.out.println("  --profile           Migration profile: " + MigrationProfile.getAvailableProfiles());
+        System.out.println("  --generate-config   Generate sample configuration file");
+        System.out.println("  --help-profiles     Show detailed profile information");
+        System.out.println("  --help-thresholds   Show threshold configuration options");
+        System.out.println();
+        System.out.println("Threshold Overrides (see --help-thresholds for full list):");
+        System.out.println("  --thresholds.high-frequency <num>     High frequency threshold");
+        System.out.println("  --thresholds.medium-frequency <num>   Medium frequency threshold");
+        System.out.println("  --thresholds.read-write-ratio <num>   Read/write ratio threshold");
+        System.out.println();
         System.out.println("Examples:");
         System.out.println("  # Basic analysis");
         System.out.println("  java -jar dotnet-analyzer.jar schema.sql ./src/MyApp.Data/");
         System.out.println();
-        System.out.println("  # Specify output and target");
-        System.out.println("  java -jar dotnet-analyzer.jar schema.sql ./src/ --output migration.json --target dynamodb");
+        System.out.println("  # Use startup profile for small applications");
+        System.out.println("  java -jar dotnet-analyzer.jar schema.sql ./src/ --profile startup-aggressive");
         System.out.println();
-        System.out.println("  # Generate both JSON and Markdown reports");
-        System.out.println("  java -jar dotnet-analyzer.jar schema.sql ./src/ --format both --verbose");
+        System.out.println("  # Override specific thresholds");
+        System.out.println("  java -jar dotnet-analyzer.jar schema.sql ./src/ --thresholds.high-frequency 10");
+        System.out.println();
+        System.out.println("  # Generate configuration file");
+        System.out.println("  java -jar dotnet-analyzer.jar schema.sql ./src/ --generate-config");
         System.out.println();
         System.out.println("Environment Variables:");
-        System.out.println("  OPENAI_API_KEY      Your OpenAI API key for AI-powered recommendations");
+        System.out.println("  OPENAI_API_KEY                Your OpenAI API key for AI-powered recommendations");
+        System.out.println("  ADEN_HIGH_FREQUENCY_THRESHOLD  Override high frequency threshold");
+        System.out.println("  ADEN_MEDIUM_FREQUENCY_THRESHOLD Override medium frequency threshold");
+        System.out.println();
+        System.out.println("Configuration Files:");
+        System.out.println("  ~/.aden/config.json           User-specific configuration");
+        System.out.println("  ./aden-config.json            Project-specific configuration");
         System.out.println();
         System.out.println("For more information, visit: https://github.com/your-org/dotnet-analyzer");
     }
@@ -205,8 +249,32 @@ public class DotNetAnalyzerCLI {
                     System.setProperty("org.slf4j.simpleLogger.defaultLogLevel", "debug");
                     break;
 
+                case "--profile":
+                    if (i + 1 >= args.length) {
+                        throw new IllegalArgumentException("Profile name not specified");
+                    }
+                    config.setMigrationProfile(args[++i]);
+                    break;
+
+                case "--generate-config":
+                    config.setGenerateConfig(true);
+                    break;
+
+                case "--help-profiles":
+                case "--help-thresholds":
+                    // These are handled in the help check above
+                    break;
+
                 default:
-                    throw new IllegalArgumentException("Unknown option: " + args[i]);
+                    // Check if it's a threshold override
+                    if (args[i].startsWith("--thresholds.")) {
+                        // Skip this argument and its value - will be handled by ConfigurationLoader
+                        if (i + 1 < args.length) {
+                            i++; // Skip the value
+                        }
+                    } else {
+                        throw new IllegalArgumentException("Unknown option: " + args[i]);
+                    }
             }
         }
 
@@ -340,6 +408,49 @@ public class DotNetAnalyzerCLI {
         if (result.getComplexityAnalysis() != null) {
             System.out.println("Overall migration complexity score: " +
                     result.getComplexityAnalysis().getOverallComplexity());
+        }
+        
+        if (recommendations.isEmpty()) {
+            System.out.println("\n🔧 Configuration Suggestions:");
+            System.out.println("-".repeat(60));
+            
+            int maxFreq = result.getQueryPatterns().stream()
+                    .mapToInt(p -> p.getFrequency())
+                    .max()
+                    .orElse(0);
+            
+            System.out.println(MigrationProfile.suggestProfile(
+                    result.getUsageProfiles().size(),
+                    result.getQueryPatterns().size(),
+                    maxFreq));
+        }
+    }
+    
+    private static void generateConfigFile(DotNetAnalyzerConfig config, String[] args) {
+        try {
+            ConfigurationLoader loader = new ConfigurationLoader();
+            String directory = config.getSourceDirectory().toString();
+            
+            MigrationProfile profile = null;
+            if (config.getMigrationProfile() != null) {
+                try {
+                    profile = MigrationProfile.fromName(config.getMigrationProfile());
+                } catch (IllegalArgumentException e) {
+                    System.err.println("Warning: Unknown profile '" + config.getMigrationProfile() + "', using defaults");
+                }
+            }
+            
+            loader.generateConfigFile(directory, profile);
+            System.out.println("✅ Configuration file generated: " + directory + "/aden-config.json");
+            
+            if (profile != null) {
+                System.out.println("   Based on profile: " + profile.getName());
+                System.out.println("   Description: " + profile.getDescription());
+            }
+            
+        } catch (Exception e) {
+            System.err.println("❌ Failed to generate configuration file: " + e.getMessage());
+            System.exit(1);
         }
     }
 }

@@ -1,6 +1,7 @@
 package org.carball.aden.analyzer;
 
 import lombok.extern.slf4j.Slf4j;
+import org.carball.aden.config.MigrationThresholds;
 import org.carball.aden.model.analysis.*;
 import org.carball.aden.model.entity.EntityModel;
 import org.carball.aden.model.entity.NavigationType;
@@ -15,18 +16,26 @@ import java.util.stream.Collectors;
 @Slf4j
 public class DotNetPatternAnalyzer {
 
-    private static final int HIGH_FREQUENCY_THRESHOLD = 50;
-    private static final int MEDIUM_FREQUENCY_THRESHOLD = 20;
-    private static final int COMPLEX_RELATIONSHIP_PENALTY = 10;
-    private static final double HIGH_READ_WRITE_RATIO = 10.0;
+    private final MigrationThresholds thresholds;
+
+    public DotNetPatternAnalyzer(MigrationThresholds thresholds) {
+        this.thresholds = thresholds;
+    }
 
     public AnalysisResult analyzePatterns(List<EntityModel> entities,
                                           List<QueryPattern> queryPatterns,
                                           DatabaseSchema schema,
                                           Map<String, String> dbSetMapping) {
 
-        log.info("Analyzing patterns for {} entities and {} query patterns",
-                entities.size(), queryPatterns.size());
+        log.info("Analyzing patterns for {} entities and {} query patterns using thresholds: {}",
+                entities.size(), queryPatterns.size(), thresholds.getConfigurationSummary());
+                
+        // Provide configuration suggestions
+        int maxFrequency = queryPatterns.stream()
+                .mapToInt(QueryPattern::getFrequency)
+                .max()
+                .orElse(0);
+        thresholds.suggestAdjustments(entities.size(), queryPatterns.size(), maxFrequency);
 
         AnalysisResult result = new AnalysisResult();
 
@@ -119,7 +128,7 @@ public class DotNetPatternAnalyzer {
                 String relatedEntity = parts[1];
 
                 // Check if this entity is always loaded with the related one
-                if (pattern.getFrequency() > MEDIUM_FREQUENCY_THRESHOLD) {
+                if (pattern.getFrequency() > thresholds.getMediumFrequencyThreshold()) {
                     if (!profile.getAlwaysLoadedWithEntities().contains(relatedEntity)) {
                         profile.getAlwaysLoadedWithEntities().add(relatedEntity);
                     }
@@ -175,22 +184,22 @@ public class DotNetPatternAnalyzer {
         // Rules for good denormalization candidates:
 
         // High frequency eager loading
-        if (profile.getEagerLoadingCount() > HIGH_FREQUENCY_THRESHOLD) {
+        if (profile.getEagerLoadingCount() > thresholds.getHighFrequencyThreshold()) {
             log.trace("{} has high eager loading count: {}",
                     profile.getEntityName(), profile.getEagerLoadingCount());
             return true;
         }
 
         // Medium frequency with always loaded entities
-        if (profile.getEagerLoadingCount() > MEDIUM_FREQUENCY_THRESHOLD &&
+        if (profile.getEagerLoadingCount() > thresholds.getMediumFrequencyThreshold() &&
                 !profile.getAlwaysLoadedWithEntities().isEmpty()) {
             log.trace("{} has medium eager loading with related entities", profile.getEntityName());
             return true;
         }
 
         // Read-heavy patterns
-        if (profile.getReadToWriteRatio() > HIGH_READ_WRITE_RATIO &&
-                profile.getReadCount() > MEDIUM_FREQUENCY_THRESHOLD) {
+        if (profile.getReadToWriteRatio() > thresholds.getHighReadWriteRatio() &&
+                profile.getReadCount() > thresholds.getMediumFrequencyThreshold()) {
             log.trace("{} has high read/write ratio: {}",
                     profile.getEntityName(), profile.getReadToWriteRatio());
             return true;
@@ -201,7 +210,7 @@ public class DotNetPatternAnalyzer {
                 .filter(p -> p.getQueryType() == QueryType.COMPLEX_EAGER_LOADING)
                 .count();
 
-        if (complexQueries > 5) {
+        if (complexQueries > thresholds.getComplexQueryRequirement()) {
             log.trace("{} has {} complex queries", profile.getEntityName(), complexQueries);
             return true;
         }
@@ -231,7 +240,7 @@ public class DotNetPatternAnalyzer {
 
         // Factor in circular references
         if (entity.hasCircularReferences()) {
-            complexityScore += COMPLEX_RELATIONSHIP_PENALTY * 2;
+            complexityScore += (int) (thresholds.getComplexRelationshipPenalty() * 2 * thresholds.getComplexityPenaltyMultiplier());
         }
 
         // Factor in number of always-loaded entities
@@ -255,7 +264,7 @@ public class DotNetPatternAnalyzer {
     private String generateReason(EntityUsageProfile profile) {
         List<String> reasons = new ArrayList<>();
 
-        if (profile.getEagerLoadingCount() > HIGH_FREQUENCY_THRESHOLD) {
+        if (profile.getEagerLoadingCount() > thresholds.getHighFrequencyThreshold()) {
             reasons.add("High frequency eager loading (" + profile.getEagerLoadingCount() + " occurrences)");
         }
 
@@ -263,7 +272,7 @@ public class DotNetPatternAnalyzer {
             reasons.add("Always loaded with: " + String.join(", ", profile.getAlwaysLoadedWithEntities()));
         }
 
-        if (profile.getReadToWriteRatio() > HIGH_READ_WRITE_RATIO) {
+        if (profile.getReadToWriteRatio() > thresholds.getHighReadWriteRatio()) {
             reasons.add("Read-heavy access pattern (ratio: " +
                     String.format("%.1f", profile.getReadToWriteRatio()) + ":1)");
         }
@@ -289,9 +298,9 @@ public class DotNetPatternAnalyzer {
         score += Math.min(profile.getAlwaysLoadedWithEntities().size() * 10, 30);
 
         // Read/write ratio (max 20 points)
-        if (profile.getReadToWriteRatio() > HIGH_READ_WRITE_RATIO) {
+        if (profile.getReadToWriteRatio() > thresholds.getHighReadWriteRatio()) {
             score += 20;
-        } else if (profile.getReadToWriteRatio() > 5) {
+        } else if (profile.getReadToWriteRatio() > thresholds.getHighReadWriteRatio() / 2) {
             score += 10;
         }
 
@@ -321,20 +330,13 @@ public class DotNetPatternAnalyzer {
     }
 
     /**
-     * Interprets the migration score into a recommendation category.
-     *
-     * Score ranges:
-     * 150+ = Excellent candidate (migrate immediately)
-     * 100-149 = Strong candidate (high priority)
-     * 60-99 = Good candidate (medium priority)
-     * 30-59 = Fair candidate (low priority)
-     * 0-29 = Poor candidate (reconsider approach)
+     * Interprets the migration score into a recommendation category using configured thresholds.
      */
-    public static String interpretScore(int score) {
-        if (score >= 150) return "Excellent candidate - migrate immediately";
-        if (score >= 100) return "Strong candidate - high priority";
-        if (score >= 60) return "Good candidate - medium priority";
-        if (score >= 30) return "Fair candidate - low priority";
+    public String interpretScore(int score) {
+        if (score >= thresholds.getExcellentCandidateThreshold()) return "Excellent candidate - migrate immediately";
+        if (score >= thresholds.getStrongCandidateThreshold()) return "Strong candidate - high priority";
+        if (score >= thresholds.getGoodCandidateThreshold()) return "Good candidate - medium priority";
+        if (score >= thresholds.getFairCandidateThreshold()) return "Fair candidate - low priority";
         return "Poor candidate - reconsider approach";
     }
 

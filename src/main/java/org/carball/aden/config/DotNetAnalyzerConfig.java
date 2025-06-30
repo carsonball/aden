@@ -16,4 +16,8 @@ public class DotNetAnalyzerConfig {
     private ComplexityFilter complexityFilter;
     private boolean verbose;
     private boolean debugMode;
+    
+    // Migration threshold configuration
+    private String migrationProfile;
+    private boolean generateConfig;
 }

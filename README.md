@@ -50,7 +50,7 @@ mvn clean package
 ### Basic Usage
 
 ```bash
-# Analyze a .NET application
+# Analyze a .NET application with default settings
 java -jar target/dotnet-analyzer.jar schema.sql ./src/YourApp/
 
 # Skip AI recommendations (no API key needed)
@@ -58,6 +58,54 @@ java -Dskip.ai=true -jar target/dotnet-analyzer.jar schema.sql ./src/YourApp/
 
 # Generate both JSON and Markdown reports
 java -jar target/dotnet-analyzer.jar schema.sql ./src/YourApp/ --format both
+```
+
+### Smart Configuration with Profiles
+
+The analyzer includes intelligent configuration profiles that adapt to different application contexts:
+
+```bash
+# For small applications and prototypes
+java -jar target/dotnet-analyzer.jar schema.sql ./src/ --profile startup-aggressive
+
+# For enterprise applications (conservative analysis)
+java -jar target/dotnet-analyzer.jar schema.sql ./src/ --profile enterprise-conservative
+
+# For discovery of all potential patterns
+java -jar target/dotnet-analyzer.jar schema.sql ./src/ --profile discovery
+
+# Industry-specific optimizations
+java -jar target/dotnet-analyzer.jar schema.sql ./src/ --profile retail
+java -jar target/dotnet-analyzer.jar schema.sql ./src/ --profile healthcare
+java -jar target/dotnet-analyzer.jar schema.sql ./src/ --profile financial
+```
+
+### Custom Threshold Configuration
+
+```bash
+# Override specific thresholds for your application
+java -jar target/dotnet-analyzer.jar schema.sql ./src/ \
+  --thresholds.high-frequency 25 \
+  --thresholds.medium-frequency 10
+
+# Generate a configuration file template
+java -jar target/dotnet-analyzer.jar schema.sql ./src/ --generate-config
+
+# Use project-specific configuration (automatically loaded from ./aden-config.json)
+java -jar target/dotnet-analyzer.jar schema.sql ./src/
+```
+
+### Getting Help
+
+```bash
+# See all available profiles
+java -jar target/dotnet-analyzer.jar --help-profiles
+
+# See detailed threshold configuration options
+java -jar target/dotnet-analyzer.jar --help-thresholds
+
+# General help
+java -jar target/dotnet-analyzer.jar --help
 ```
 
 ## 🔧 Configuration

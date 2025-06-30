@@ -2,8 +2,7 @@ package org.carball.aden.analyzer;
 
 import lombok.extern.slf4j.Slf4j;
 import org.carball.aden.ai.RecommendationEngine;
-import org.carball.aden.config.DotNetAnalyzerConfig;
-import org.carball.aden.config.ComplexityFilter;
+import org.carball.aden.config.*;
 import org.carball.aden.model.analysis.AnalysisResult;
 import org.carball.aden.model.analysis.DenormalizationCandidate;
 import org.carball.aden.model.entity.EntityModel;
@@ -30,14 +29,35 @@ public class DotNetAnalyzer {
     private final RecommendationEngine recommendationEngine;
 
     public DotNetAnalyzer(DotNetAnalyzerConfig config) {
+        this(config, new String[0]);
+    }
+    
+    public DotNetAnalyzer(DotNetAnalyzerConfig config, String[] args) {
         this.config = config;
         this.schemaParser = new SchemaParser();
         this.efParser = new EFModelParser();
         this.linqAnalyzer = new LinqAnalyzer();
-        this.patternAnalyzer = new DotNetPatternAnalyzer();
+        
+        // Load migration thresholds
+        MigrationThresholds thresholds = loadMigrationThresholds(config, args);
+        this.patternAnalyzer = new DotNetPatternAnalyzer(thresholds);
         this.recommendationEngine = new RecommendationEngine(config.getOpenAiApiKey());
 
         log.info("Initialized DotNetAnalyzer with config: {}", config);
+    }
+    
+    private MigrationThresholds loadMigrationThresholds(DotNetAnalyzerConfig config, String[] args) {
+        ConfigurationLoader loader = new ConfigurationLoader();
+        
+        if (config.getMigrationProfile() != null) {
+            return loader.loadConfigurationWithProfile(
+                config.getMigrationProfile(), 
+                args, 
+                config.getSourceDirectory().toString()
+            );
+        } else {
+            return loader.loadConfiguration(args, config.getSourceDirectory().toString());
+        }
     }
 
     public AnalysisResult analyze() throws IOException {
