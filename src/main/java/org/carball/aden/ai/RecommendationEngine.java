@@ -1,7 +1,6 @@
 // RecommendationEngine.java
 package org.carball.aden.ai;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.theokanning.openai.completion.chat.ChatCompletionRequest;
 import com.theokanning.openai.completion.chat.ChatCompletionResult;
 import com.theokanning.openai.completion.chat.ChatMessage;
@@ -20,13 +19,12 @@ import java.util.regex.Pattern;
 public class RecommendationEngine {
 
     private final OpenAiService openAiService;
-    private final ObjectMapper objectMapper;
     private static final String MODEL = "gpt-4";
     private static final double TEMPERATURE = 0.1;
     private static final int MAX_TOKENS = 1500;
 
     private static final String SYSTEM_PROMPT = """
-        You are an expert AWS solutions architect specializing in .NET Framework 
+        You are an expert AWS solutions architect specializing in .NET Framework
         to cloud migrations. Your expertise includes:
         
         - Legacy .NET Framework and Entity Framework patterns
@@ -35,7 +33,7 @@ public class RecommendationEngine {
         - Cost optimization strategies
         - Single table design patterns for DynamoDB
         
-        Provide specific, actionable recommendations for migrating SQL Server 
+        Provide specific, actionable recommendations for migrating SQL Server
         + Entity Framework applications to AWS NoSQL services. Focus on:
         
         - Choosing the right AWS service for each use case
@@ -54,7 +52,6 @@ public class RecommendationEngine {
         } else {
             this.openAiService = null;
         }
-        this.objectMapper = new ObjectMapper();
     }
 
     public List<NoSQLRecommendation> generateRecommendations(AnalysisResult analysis) {
@@ -114,11 +111,14 @@ public class RecommendationEngine {
                 .build();
 
         log.trace("Sending prompt to OpenAI for entity: {}", candidate.getPrimaryEntity());
+        log.trace("System prompt:\n{}", SYSTEM_PROMPT);
+        log.trace("User prompt:\n{}", prompt);
 
         ChatCompletionResult result = openAiService.createChatCompletion(request);
         String response = result.getChoices().get(0).getMessage().getContent();
 
         log.trace("Received response: {} characters", response.length());
+        log.trace("OpenAI response:\n{}", response);
 
         return parseRecommendationResponse(response, candidate);
     }
@@ -204,7 +204,7 @@ public class RecommendationEngine {
     }
 
     private NoSQLTarget parseTargetService(String response) {
-        Pattern pattern = Pattern.compile("\\*\\*Target Service\\*\\*:?\\s*\\[?([^\\]\\n]+)",
+        Pattern pattern = Pattern.compile("\\*\\*Target Service\\*\\*:?\\s*\\[?([^]\\n]+)",
                 Pattern.CASE_INSENSITIVE);
         Matcher matcher = pattern.matcher(response);
 
@@ -225,7 +225,7 @@ public class RecommendationEngine {
     private String parseSection(String response, String sectionName, String keyword) {
         // Try to find section by name
         Pattern sectionPattern = Pattern.compile(
-                "\\*\\*" + sectionName + "\\*\\*:?\\s*([^\\*]+)",
+                "\\*\\*" + sectionName + "\\*\\*:?\\s*([^*]+)",
                 Pattern.CASE_INSENSITIVE | Pattern.DOTALL
         );
         Matcher matcher = sectionPattern.matcher(response);
@@ -257,7 +257,7 @@ public class RecommendationEngine {
 
     private KeyStrategy parseKeyStrategy(String response, String keyType) {
         Pattern pattern = Pattern.compile(
-                "\\*\\*" + keyType + "\\s*(?:Strategy)?\\*\\*:?\\s*([^\\*]+)",
+                "\\*\\*" + keyType + "\\s*(?:Strategy)?\\*\\*:?\\s*([^*]+)",
                 Pattern.CASE_INSENSITIVE | Pattern.DOTALL
         );
         Matcher matcher = pattern.matcher(response);
@@ -271,7 +271,7 @@ public class RecommendationEngine {
             String attribute = attrMatcher.find() ? attrMatcher.group(1) : keyType.toLowerCase() + "Key";
 
             // Extract type
-            Pattern typePattern = Pattern.compile("(?:Type):?\\s*(S|N|B)", Pattern.CASE_INSENSITIVE);
+            Pattern typePattern = Pattern.compile("Type:?\\s*([SNB])", Pattern.CASE_INSENSITIVE);
             Matcher typeMatcher = typePattern.matcher(keyContent);
             String type = typeMatcher.find() ? typeMatcher.group(1) : "S";
 
@@ -300,9 +300,9 @@ public class RecommendationEngine {
         Matcher matcher = gsiPattern.matcher(response);
 
         while (matcher.find()) {
-            String indexName = matcher.group(1).replaceAll("[\\*`]", "").trim();
-            String partitionKey = matcher.group(2).replaceAll("[\\*`]", "").trim();
-            String sortKey = matcher.group(3).replaceAll("[\\*`]", "").trim();
+            String indexName = matcher.group(1).replaceAll("[*`]", "").trim();
+            String partitionKey = matcher.group(2).replaceAll("[*`]", "").trim();
+            String sortKey = matcher.group(3).replaceAll("[*`]", "").trim();
 
             GSIStrategy gsi = GSIStrategy.builder()
                     .indexName(indexName)

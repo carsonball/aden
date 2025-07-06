@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <!-- Console appender for standard output -->
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} -- %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- Root logger - default level INFO -->
+    <root level="INFO">
+        <appender-ref ref="CONSOLE" />
+    </root>
+
+    <!-- Package-specific logging levels -->
+    <logger name="org.carball.aden.ai" level="TRACE" />
+    <logger name="org.carball.aden.parser" level="DEBUG" />
+    <logger name="org.carball.aden.analyzer" level="DEBUG" />
+    <logger name="org.carball.aden.config" level="DEBUG" />
+    
+    <!-- To enable full trace logging for all aden components, uncomment: -->
+    <!-- <logger name="org.carball.aden" level="TRACE" /> -->
+</configuration>
