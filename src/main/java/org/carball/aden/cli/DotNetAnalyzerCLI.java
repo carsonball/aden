@@ -5,6 +5,7 @@ import org.carball.aden.analyzer.DotNetAnalyzer;
 import org.carball.aden.config.*;
 import org.carball.aden.model.analysis.AnalysisResult;
 import org.carball.aden.model.analysis.NoSQLTarget;
+import org.carball.aden.model.query.QueryPattern;
 import org.carball.aden.model.recommendation.NoSQLRecommendation;
 import org.carball.aden.output.MigrationReport;
 
@@ -27,7 +28,7 @@ public class DotNetAnalyzerCLI {
         """;
 
     public static void main(String[] args) {
-        System.out.println(String.format(BANNER, VERSION));
+        System.out.printf((BANNER) + "%n", VERSION);
 
         if (args.length < 2 || isHelpRequested(args)) {
             if (Arrays.asList(args).contains("--help-profiles")) {
@@ -43,11 +44,6 @@ public class DotNetAnalyzerCLI {
         try {
             DotNetAnalyzerConfig config = parseArgs(args);
             
-            // Handle config generation
-            if (config.isGenerateConfig()) {
-                generateConfigFile(config, args);
-                return;
-            }
 
             System.out.println("\n🔍 Starting analysis...");
             System.out.println("   Schema file: " + config.getSchemaFile());
@@ -143,7 +139,6 @@ public class DotNetAnalyzerCLI {
         System.out.println();
         System.out.println("Migration Configuration:");
         System.out.println("  --profile           Migration profile: " + MigrationProfile.getAvailableProfiles());
-        System.out.println("  --generate-config   Generate sample configuration file");
         System.out.println("  --help-profiles     Show detailed profile information");
         System.out.println("  --help-thresholds   Show threshold configuration options");
         System.out.println();
@@ -162,17 +157,10 @@ public class DotNetAnalyzerCLI {
         System.out.println("  # Override specific thresholds");
         System.out.println("  java -jar dotnet-analyzer.jar schema.sql ./src/ --thresholds.high-frequency 10");
         System.out.println();
-        System.out.println("  # Generate configuration file");
-        System.out.println("  java -jar dotnet-analyzer.jar schema.sql ./src/ --generate-config");
-        System.out.println();
         System.out.println("Environment Variables:");
         System.out.println("  OPENAI_API_KEY                Your OpenAI API key for AI-powered recommendations");
         System.out.println("  ADEN_HIGH_FREQUENCY_THRESHOLD  Override high frequency threshold");
         System.out.println("  ADEN_MEDIUM_FREQUENCY_THRESHOLD Override medium frequency threshold");
-        System.out.println();
-        System.out.println("Configuration Files:");
-        System.out.println("  ~/.aden/config.json           User-specific configuration");
-        System.out.println("  ./aden-config.json            Project-specific configuration");
         System.out.println();
         System.out.println("For more information, visit: https://github.com/your-org/dotnet-analyzer");
     }
@@ -256,9 +244,6 @@ public class DotNetAnalyzerCLI {
                     config.setMigrationProfile(args[++i]);
                     break;
 
-                case "--generate-config":
-                    config.setGenerateConfig(true);
-                    break;
 
                 case "--help-profiles":
                 case "--help-thresholds":
@@ -415,7 +400,7 @@ public class DotNetAnalyzerCLI {
             System.out.println("-".repeat(60));
             
             int maxFreq = result.getQueryPatterns().stream()
-                    .mapToInt(p -> p.getFrequency())
+                    .mapToInt(QueryPattern::getFrequency)
                     .max()
                     .orElse(0);
             
@@ -426,31 +411,4 @@ public class DotNetAnalyzerCLI {
         }
     }
     
-    private static void generateConfigFile(DotNetAnalyzerConfig config, String[] args) {
-        try {
-            ConfigurationLoader loader = new ConfigurationLoader();
-            String directory = config.getSourceDirectory().toString();
-            
-            MigrationProfile profile = null;
-            if (config.getMigrationProfile() != null) {
-                try {
-                    profile = MigrationProfile.fromName(config.getMigrationProfile());
-                } catch (IllegalArgumentException e) {
-                    System.err.println("Warning: Unknown profile '" + config.getMigrationProfile() + "', using defaults");
-                }
-            }
-            
-            loader.generateConfigFile(directory, profile);
-            System.out.println("✅ Configuration file generated: " + directory + "/aden-config.json");
-            
-            if (profile != null) {
-                System.out.println("   Based on profile: " + profile.getName());
-                System.out.println("   Description: " + profile.getDescription());
-            }
-            
-        } catch (Exception e) {
-            System.err.println("❌ Failed to generate configuration file: " + e.getMessage());
-            System.exit(1);
-        }
-    }
 }

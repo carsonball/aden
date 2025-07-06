@@ -88,10 +88,9 @@ java -jar target/dotnet-analyzer.jar schema.sql ./src/ \
   --thresholds.high-frequency 25 \
   --thresholds.medium-frequency 10
 
-# Generate a configuration file template
-java -jar target/dotnet-analyzer.jar schema.sql ./src/ --generate-config
-
-# Use project-specific configuration (automatically loaded from ./aden-config.json)
+# Use environment variables for threshold configuration
+export ADEN_HIGH_FREQUENCY_THRESHOLD=25
+export ADEN_MEDIUM_FREQUENCY_THRESHOLD=10
 java -jar target/dotnet-analyzer.jar schema.sql ./src/
 ```
 
@@ -118,6 +117,14 @@ export OPENAI_API_KEY=sk-your-api-key
 
 # Skip AI features
 export SKIP_AI=true
+
+# Threshold configuration
+export ADEN_HIGH_FREQUENCY_THRESHOLD=50
+export ADEN_MEDIUM_FREQUENCY_THRESHOLD=20
+export ADEN_HIGH_READ_WRITE_RATIO=10.0
+export ADEN_COMPLEX_RELATIONSHIP_PENALTY=10
+export ADEN_COMPLEXITY_PENALTY_MULTIPLIER=1.5
+export ADEN_MINIMUM_MIGRATION_SCORE=30
 ```
 
 ### Command Line Options

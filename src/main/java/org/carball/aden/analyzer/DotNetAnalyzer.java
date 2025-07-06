@@ -52,11 +52,10 @@ public class DotNetAnalyzer {
         if (config.getMigrationProfile() != null) {
             return loader.loadConfigurationWithProfile(
                 config.getMigrationProfile(), 
-                args, 
-                config.getSourceDirectory().toString()
+                args
             );
         } else {
-            return loader.loadConfiguration(args, config.getSourceDirectory().toString());
+            return loader.loadConfiguration(args);
         }
     }
 

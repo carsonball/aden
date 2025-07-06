@@ -19,5 +19,4 @@ public class DotNetAnalyzerConfig {
     
     // Migration threshold configuration
     private String migrationProfile;
-    private boolean generateConfig;
 }
