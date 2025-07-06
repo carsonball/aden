@@ -7,5 +7,18 @@ public enum QueryType {
     FILTERED_SINGLE,
     FILTERED_COLLECTION,
     EAGER_LOADING,
-    COMPLEX_EAGER_LOADING
+    COMPLEX_EAGER_LOADING,
+    
+    // Enhanced query types for better pattern analysis
+    WHERE_CLAUSE,
+    ORDER_BY,
+    GROUP_BY,
+    AGGREGATION,
+    PAGINATION,
+    RANGE_QUERY,
+    EXACT_MATCH,
+    PARTIAL_MATCH,
+    MULTI_COLUMN_FILTER,
+    PARAMETER_QUERY,
+    COMPLEX_CONDITIONAL
 }
