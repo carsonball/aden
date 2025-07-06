@@ -9,6 +9,7 @@ import org.carball.aden.model.query.QueryPattern;
 import org.carball.aden.model.query.QueryType;
 import org.carball.aden.model.schema.DatabaseSchema;
 import org.carball.aden.model.schema.Relationship;
+import org.carball.aden.model.schema.Table;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -249,13 +250,35 @@ public class DotNetPatternAnalyzer {
         long complexQueries = profile.getQueryPatterns().stream()
                 .filter(p -> p.getQueryType() == QueryType.COMPLEX_EAGER_LOADING)
                 .count();
-        complexityScore += complexQueries * 4;
+        complexityScore += (int) (complexQueries * 4);
 
         // Check for many-to-many relationships
         long manyToManyCount = entity.getNavigationProperties().stream()
                 .filter(p -> p.getType() == NavigationType.MANY_TO_MANY)
                 .count();
-        complexityScore += manyToManyCount * 10;
+        complexityScore += (int) (manyToManyCount * 10);
+
+        // Factor in database schema complexity
+        if (schema != null) {
+            String entityName = entity.getClassName();
+            
+            // Find corresponding table
+            Table table = schema.findTable(entityName);
+            if (table != null) {
+                // More columns = more complexity
+                complexityScore += Math.min(table.getColumns().size(), 20);
+                
+                // Multiple indexes suggest complex access patterns
+                complexityScore += table.getIndexes().size() * 2;
+            }
+            
+            // Number of relationships involving this entity
+            long relationshipCount = schema.getRelationships().stream()
+                    .filter(r -> r.getFromTable().equalsIgnoreCase(entityName) || 
+                               r.getToTable().equalsIgnoreCase(entityName))
+                    .count();
+            complexityScore += (int) (relationshipCount * 3);
+        }
 
         return MigrationComplexity.fromScore(complexityScore);
     }
@@ -307,7 +330,7 @@ public class DotNetPatternAnalyzer {
         long complexQueries = profile.getQueryPatterns().stream()
                 .filter(p -> p.getQueryType() == QueryType.COMPLEX_EAGER_LOADING)
                 .count();
-        score += Math.min(complexQueries * 5, 25);
+        score += (int) Math.min(complexQueries * 5, 25);
 
         // Bonus for simple key-based access (15 points)
         if (profile.hasSimpleKeyBasedAccess()) {
@@ -328,16 +351,6 @@ public class DotNetPatternAnalyzer {
         return Math.max(score, 0);
     }
 
-    /**
-     * Interprets the migration score into a recommendation category using configured thresholds.
-     */
-    public String interpretScore(int score) {
-        if (score >= thresholds.getExcellentCandidateThreshold()) return "Excellent candidate - migrate immediately";
-        if (score >= thresholds.getStrongCandidateThreshold()) return "Strong candidate - high priority";
-        if (score >= thresholds.getGoodCandidateThreshold()) return "Good candidate - medium priority";
-        if (score >= thresholds.getFairCandidateThreshold()) return "Fair candidate - low priority";
-        return "Poor candidate - reconsider approach";
-    }
 
     private NoSQLTarget selectOptimalTarget(EntityUsageProfile profile) {
         EntityModel entity = profile.getEntity();
@@ -423,14 +436,14 @@ public class DotNetPatternAnalyzer {
         long entityQueries = queryPatterns.stream()
                 .filter(p -> extractEntityName(p.getTargetEntity(), dbSetMapping).equals(entity.getClassName()))
                 .count();
-        complexity += entityQueries;
+        complexity += (int) entityQueries;
 
         // Database relationships
         long relationships = schema.getRelationships().stream()
                 .filter(r -> r.getFromTable().equals(entity.getClassName()) ||
                         r.getToTable().equals(entity.getClassName()))
                 .count();
-        complexity += relationships * 3;
+        complexity += (int) (relationships * 3);
 
         return complexity;
     }
@@ -444,7 +457,7 @@ public class DotNetPatternAnalyzer {
         List<Map.Entry<String, Integer>> sortedScores = scores.entrySet().stream()
                 .sorted(Map.Entry.<String, Integer>comparingByValue().reversed())
                 .limit(3)
-                .collect(Collectors.toList());
+                .toList();
 
         if (!sortedScores.isEmpty()) {
             reasons.add("Most complex entities: " +

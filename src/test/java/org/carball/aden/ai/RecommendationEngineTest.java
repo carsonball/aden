@@ -105,7 +105,7 @@ public class RecommendationEngineTest {
         Method method = RecommendationEngine.class.getDeclaredMethod("serializeQueryPatterns", String.class, List.class);
         method.setAccessible(true);
         
-        String result = (String) method.invoke(engine, "Customer", Arrays.asList());
+        String result = (String) method.invoke(engine, "Customer", List.of());
         
         assertThat(result).contains("No query patterns found");
     }
@@ -184,7 +184,7 @@ public class RecommendationEngineTest {
         
         customerTable.addIndex(Index.builder()
                 .name("IX_Customer_Email")
-                .columns(Arrays.asList("Email"))
+                .columns(List.of("Email"))
                 .unique(true)
                 .build());
         
@@ -237,7 +237,7 @@ public class RecommendationEngineTest {
     private DenormalizationCandidate createTestCandidate() {
         return DenormalizationCandidate.builder()
                 .primaryEntity("Customer")
-                .relatedEntities(Arrays.asList("Orders"))
+                .relatedEntities(List.of("Orders"))
                 .complexity(MigrationComplexity.MEDIUM)
                 .reason("High frequency eager loading")
                 .recommendedTarget(NoSQLTarget.DYNAMODB)
@@ -252,7 +252,7 @@ public class RecommendationEngineTest {
         EntityModel entityModel = new EntityModel("Customer", "Customer.cs");
         EntityUsageProfile profile = new EntityUsageProfile(entityModel);
         profile.incrementEagerLoadingCount(10);
-        profile.getAlwaysLoadedWithEntities().addAll(Arrays.asList("Orders"));
+        profile.getAlwaysLoadedWithEntities().add("Orders");
         
         analysis.getUsageProfiles().put("Customer", profile);
         
