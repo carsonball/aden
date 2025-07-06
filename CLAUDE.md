@@ -118,6 +118,105 @@ Proposed approach: [if you have ideas]
 Must maintain: [what cannot change]
 ```
 
+## Development Workflow Templates
+
+For feature development, follow the Design → Implement → Test → Refactor workflow using these templates:
+
+### 1. Design Phase
+
+```
+DESIGN: [Component] - [What we're designing]
+
+Requirements:
+- [Functional requirement 1]
+- [Non-functional requirement 1]
+
+Constraints:
+- [Technical constraints]
+- [Integration constraints]
+
+Need help with:
+- Class/interface design
+- Pattern selection
+- API design
+- Trade-off analysis
+```
+
+### 2. Implementation Phase
+
+```
+IMPLEMENT: [Component] - [Specific piece]
+
+Design decision: [Reference the agreed design]
+Current task: [Specific implementation step]
+Dependencies: [What this relies on]
+
+Need:
+- [Specific class/method implementation]
+- [Following the agreed patterns]
+```
+
+### 3. Test Phase
+
+```
+TEST: [Component] - [What we're testing]
+
+Implementation complete: [What was built]
+Test scenarios needed:
+- [Scenario 1]
+- [Edge case 1]
+- [Error case 1]
+
+Test approach:
+- Unit tests for [components]
+- Integration tests for [flows]
+- Mock requirements: [what to mock]
+```
+
+### 4. Refactor Phase
+
+```
+REFACTOR: [Component] - [Improvement goal]
+
+Current implementation: [Brief description]
+Issues identified:
+- [From testing]
+- [From code review]
+- [From usage]
+
+Proposed improvements:
+- [Improvement 1]
+- [Maintain: what must not break]
+
+Success criteria:
+- All tests still pass
+- [Specific improvement metric]
+```
+
+### Workflow Example
+
+```
+1. Start with DESIGN to establish architecture
+2. IMPLEMENT in small increments
+3. TEST each increment thoroughly
+4. REFACTOR when patterns emerge or issues are found
+5. Repeat steps 2-4 until feature is complete
+```
+
+### When to Move Between Phases
+
+- Design → Implement: When you have clear interfaces and patterns decided
+- Implement → Test: When a logical unit of functionality is complete
+- Test → Refactor: When all tests pass but code could be cleaner
+- Refactor → Implement: When refactoring is complete and tests still pass
+
+### Workflow Anti-patterns
+
+- ❌ Don't skip design phase for complex features
+- ❌ Don't implement everything before testing anything
+- ❌ Don't refactor without tests
+- ❌ Don't mix phases (e.g., refactoring during implementation)
+
 ## Best Practices for Claude Interactions
 
 ### 1. Incremental Development
@@ -330,6 +429,21 @@ Feature request: [new capability that would help]
 - High frequency + always together = good migration candidate
 - Complex relationships → DocumentDB, Simple → DynamoDB, Graph patterns → Neptune
 - Package-private methods for test access (remove 'private' modifier)
+
+### Development Workflow Commands
+```
+# Design phase - get architecture right first
+DESIGN: Ask for patterns, interfaces, and trade-offs
+
+# Implementation phase - build incrementally  
+IMPLEMENT: Build one component at a time
+
+# Test phase - verify behavior
+TEST: Comprehensive test cases for current implementation
+
+# Refactor phase - improve without breaking
+REFACTOR: Clean up with all tests passing
+```
 
 ### Testing Commands
 ```bash
