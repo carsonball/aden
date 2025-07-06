@@ -2,7 +2,6 @@
 
 [![Java Version](https://img.shields.io/badge/Java-17%2B-blue)](https://adoptium.net/)
 [![Maven](https://img.shields.io/badge/Maven-3.6%2B-blue)](https://maven.apache.org/)
-[![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
 
 An intelligent command-line tool that analyzes legacy .NET Framework applications with Entity Framework and SQL Server, then recommends optimal AWS NoSQL migration strategies using AI-powered analysis.
 
@@ -277,9 +276,6 @@ See [CLAUDE.md](CLAUDE.md) for guidelines on working with AI assistance on this 
 4. Push to the branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
 
-## 📝 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ## 🙏 Acknowledgments
 
