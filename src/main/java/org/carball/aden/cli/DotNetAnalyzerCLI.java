@@ -97,17 +97,11 @@ public class DotNetAnalyzerCLI {
             System.exit(1);
         } catch (IOException e) {
             System.err.println("\n❌ IO error: " + e.getMessage());
-            if (log.isDebugEnabled()) {
-                e.printStackTrace();
-            }
+            log.debug("IO error details", e);
             System.exit(1);
         } catch (Exception e) {
             System.err.println("\n❌ Unexpected error: " + e.getMessage());
-            if (log.isDebugEnabled()) {
-                e.printStackTrace();
-            } else {
-                System.err.println("\nRun with --debug for full stack trace.");
-            }
+            log.debug("Unexpected error details", e);
             System.exit(1);
         }
     }
@@ -134,7 +128,6 @@ public class DotNetAnalyzerCLI {
         System.out.println("  --target            AWS target: dynamodb|documentdb|neptune|all (default: all)");
         System.out.println("  --complexity        Include only: low|medium|high|all (default: all)");
         System.out.println("  --verbose, -v       Enable verbose output");
-        System.out.println("  --debug             Enable debug output");
         System.out.println("  --help, -h          Show this help message");
         System.out.println();
         System.out.println("Migration Configuration:");
@@ -176,7 +169,6 @@ public class DotNetAnalyzerCLI {
         config.setTargetServices(Arrays.asList(NoSQLTarget.values()));
         config.setComplexityFilter(ComplexityFilter.ALL);
         config.setVerbose(false);
-        config.setDebugMode(false);
 
         // Parse optional arguments
         for (int i = 2; i < args.length; i++) {
@@ -229,12 +221,6 @@ public class DotNetAnalyzerCLI {
                 case "--verbose":
                 case "-v":
                     config.setVerbose(true);
-                    break;
-
-                case "--debug":
-                    config.setDebugMode(true);
-                    // Configure logging
-                    System.setProperty("org.slf4j.simpleLogger.defaultLogLevel", "debug");
                     break;
 
                 case "--profile":
