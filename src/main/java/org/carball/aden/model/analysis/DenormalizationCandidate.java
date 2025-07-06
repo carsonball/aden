@@ -1,9 +1,11 @@
 package org.carball.aden.model.analysis;
 
+import lombok.Builder;
 import lombok.Data;
 import java.util.List;
 
 @Data
+@Builder
 public class DenormalizationCandidate {
     private String primaryEntity;
     private List<String> relatedEntities;

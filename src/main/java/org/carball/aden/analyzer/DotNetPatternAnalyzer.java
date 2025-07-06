@@ -220,15 +220,14 @@ public class DotNetPatternAnalyzer {
 
     private DenormalizationCandidate createCandidate(EntityUsageProfile profile,
                                                      DatabaseSchema schema) {
-        DenormalizationCandidate candidate = new DenormalizationCandidate();
-        candidate.setPrimaryEntity(profile.getEntityName());
-        candidate.setRelatedEntities(new ArrayList<>(profile.getAlwaysLoadedWithEntities()));
-        candidate.setComplexity(calculateComplexity(profile, schema));
-        candidate.setReason(generateReason(profile));
-        candidate.setScore(calculateScore(profile));
-        candidate.setRecommendedTarget(selectOptimalTarget(profile));
-
-        return candidate;
+        return DenormalizationCandidate.builder()
+                .primaryEntity(profile.getEntityName())
+                .relatedEntities(new ArrayList<>(profile.getAlwaysLoadedWithEntities()))
+                .complexity(calculateComplexity(profile, schema))
+                .reason(generateReason(profile))
+                .score(calculateScore(profile))
+                .recommendedTarget(selectOptimalTarget(profile))
+                .build();
     }
 
     private MigrationComplexity calculateComplexity(EntityUsageProfile profile, DatabaseSchema schema) {

@@ -9,6 +9,8 @@ import com.theokanning.openai.service.OpenAiService;
 import lombok.extern.slf4j.Slf4j;
 import org.carball.aden.model.analysis.*;
 import org.carball.aden.model.recommendation.*;
+import org.carball.aden.model.schema.*;
+import org.carball.aden.model.query.*;
 
 import java.time.Duration;
 import java.util.*;
@@ -55,6 +57,12 @@ public class RecommendationEngine {
     }
 
     public List<NoSQLRecommendation> generateRecommendations(AnalysisResult analysis) {
+        return generateRecommendations(analysis, null, null);
+    }
+
+    public List<NoSQLRecommendation> generateRecommendations(AnalysisResult analysis, 
+                                                            DatabaseSchema schema, 
+                                                            List<QueryPattern> queryPatterns) {
         List<NoSQLRecommendation> recommendations = new ArrayList<>();
 
         // Check if we should skip AI
@@ -74,7 +82,7 @@ public class RecommendationEngine {
 
         for (DenormalizationCandidate candidate : analysis.getDenormalizationCandidates()) {
             try {
-                NoSQLRecommendation recommendation = generateSingleRecommendation(candidate, analysis);
+                NoSQLRecommendation recommendation = generateSingleRecommendation(candidate, analysis, schema, queryPatterns);
                 recommendations.add(recommendation);
 
                 log.debug("Generated recommendation for {}: {} ({})",
@@ -96,9 +104,10 @@ public class RecommendationEngine {
     }
 
     private NoSQLRecommendation generateSingleRecommendation(
-            DenormalizationCandidate candidate, AnalysisResult analysis) {
+            DenormalizationCandidate candidate, AnalysisResult analysis,
+            DatabaseSchema schema, List<QueryPattern> queryPatterns) {
 
-        String prompt = buildRecommendationPrompt(candidate, analysis);
+        String prompt = buildRecommendationPrompt(candidate, analysis, schema, queryPatterns);
 
         ChatCompletionRequest request = ChatCompletionRequest.builder()
                 .model(MODEL)
@@ -124,7 +133,9 @@ public class RecommendationEngine {
     }
 
     private String buildRecommendationPrompt(DenormalizationCandidate candidate,
-                                             AnalysisResult analysis) {
+                                             AnalysisResult analysis,
+                                             DatabaseSchema schema,
+                                             List<QueryPattern> queryPatterns) {
         StringBuilder prompt = new StringBuilder();
 
         prompt.append("## Entity Analysis:\n\n");
@@ -147,6 +158,24 @@ public class RecommendationEngine {
             prompt.append("**Access Pattern:** ").append(
                     profile.hasSimpleKeyBasedAccess() ? "Simple key-based" : "Complex queries"
             ).append("\n\n");
+        }
+
+        // Add detailed schema information if available
+        if (schema != null) {
+            prompt.append("## Database Schema Context:\n\n");
+            prompt.append(serializeTableSchema(candidate.getPrimaryEntity(), schema));
+            prompt.append("\n");
+            prompt.append(serializeRelationships(candidate.getPrimaryEntity(), schema));
+            prompt.append("\n");
+        }
+
+        // Add query pattern information if available
+        if (queryPatterns != null && !queryPatterns.isEmpty()) {
+            prompt.append("## Query Pattern Analysis:\n\n");
+            prompt.append(serializeQueryPatterns(candidate.getPrimaryEntity(), queryPatterns));
+            prompt.append("\n");
+            prompt.append(serializeEntityFrameworkContext(candidate.getPrimaryEntity(), queryPatterns));
+            prompt.append("\n");
         }
 
         prompt.append("## Requirements:\n\n");
@@ -375,5 +404,220 @@ public class RecommendationEngine {
         recommendation.setSchemaDesign("Fallback recommendation - AI service unavailable");
 
         return recommendation;
+    }
+
+    /**
+     * Serializes detailed table schema information for a specific entity
+     */
+    private String serializeTableSchema(String entityName, DatabaseSchema schema) {
+        StringBuilder tableInfo = new StringBuilder();
+        
+        Table table = schema.findTable(entityName);
+        if (table == null) {
+            return "Table not found in schema";
+        }
+        
+        tableInfo.append("**Table:** ").append(table.getName()).append("\n");
+        
+        // Primary key information
+        if (table.getPrimaryKey() != null) {
+            Column pk = table.getPrimaryKey();
+            tableInfo.append("**Primary Key:** ").append(pk.getName())
+                    .append(" (").append(pk.getDataType()).append(")\n");
+        }
+        
+        // Column details
+        tableInfo.append("**Columns:**\n");
+        for (Column column : table.getColumns()) {
+            tableInfo.append("  - ").append(column.getName())
+                    .append(" (").append(column.getDataType()).append(")")
+                    .append(column.isNullable() ? " NULL" : " NOT NULL");
+            
+            if (column.getDefaultValue() != null) {
+                tableInfo.append(" DEFAULT ").append(column.getDefaultValue());
+            }
+            
+            if (column.isForeignKey()) {
+                tableInfo.append(" FK -> ").append(column.getReferencedTable())
+                        .append(".").append(column.getReferencedColumn());
+            }
+            
+            tableInfo.append("\n");
+        }
+        
+        // Index information
+        if (!table.getIndexes().isEmpty()) {
+            tableInfo.append("**Indexes:**\n");
+            for (Index index : table.getIndexes()) {
+                tableInfo.append("  - ").append(index.getName())
+                        .append(" (").append(String.join(", ", index.getColumns())).append(")")
+                        .append(index.isUnique() ? " UNIQUE" : "")
+                        .append("\n");
+            }
+        }
+        
+        return tableInfo.toString();
+    }
+
+    /**
+     * Serializes relationship information for a specific entity
+     */
+    private String serializeRelationships(String entityName, DatabaseSchema schema) {
+        StringBuilder relationshipInfo = new StringBuilder();
+        
+        relationshipInfo.append("**Relationships:**\n");
+        
+        List<Relationship> entityRelationships = schema.getRelationships().stream()
+                .filter(r -> r.getFromTable().equalsIgnoreCase(entityName) || 
+                           r.getToTable().equalsIgnoreCase(entityName))
+                .toList();
+        
+        if (entityRelationships.isEmpty()) {
+            relationshipInfo.append("  - No relationships found\n");
+            return relationshipInfo.toString();
+        }
+        
+        for (Relationship relationship : entityRelationships) {
+            relationshipInfo.append("  - ");
+            
+            if (relationship.getFromTable().equalsIgnoreCase(entityName)) {
+                // Outgoing relationship
+                relationshipInfo.append(relationship.getFromTable())
+                        .append(".").append(relationship.getFromColumn())
+                        .append(" -> ").append(relationship.getToTable())
+                        .append(".").append(relationship.getToColumn())
+                        .append(" (").append(relationship.getType()).append(")\n");
+            } else {
+                // Incoming relationship
+                relationshipInfo.append(relationship.getToTable())
+                        .append(".").append(relationship.getToColumn())
+                        .append(" <- ").append(relationship.getFromTable())
+                        .append(".").append(relationship.getFromColumn())
+                        .append(" (").append(relationship.getType()).append(")\n");
+            }
+        }
+        
+        return relationshipInfo.toString();
+    }
+
+    /**
+     * Serializes query patterns for a specific entity
+     */
+    private String serializeQueryPatterns(String entityName, List<QueryPattern> patterns) {
+        StringBuilder queryInfo = new StringBuilder();
+        
+        queryInfo.append("**Query Patterns:**\n");
+        
+        List<QueryPattern> entityPatterns = patterns.stream()
+                .filter(p -> p.getTargetEntity().equalsIgnoreCase(entityName) ||
+                           p.getTargetEntity().contains(entityName))
+                .toList();
+        
+        if (entityPatterns.isEmpty()) {
+            queryInfo.append("  - No query patterns found\n");
+            return queryInfo.toString();
+        }
+        
+        for (QueryPattern pattern : entityPatterns) {
+            queryInfo.append("  - **").append(pattern.getQueryType()).append("**")
+                    .append(" (frequency: ").append(pattern.getFrequency()).append(")\n");
+            
+            if (pattern.hasWhereClause()) {
+                queryInfo.append("    WHERE columns: ")
+                        .append(String.join(", ", pattern.getWhereClauseColumns()))
+                        .append("\n");
+                
+                if (!pattern.getFilterConditions().isEmpty()) {
+                    queryInfo.append("    Filter conditions:\n");
+                    for (FilterCondition condition : pattern.getFilterConditions()) {
+                        queryInfo.append("      - ").append(condition.getColumn())
+                                .append(" ").append(condition.getOperator())
+                                .append(" [").append(condition.getValueType()).append("]")
+                                .append(" (freq: ").append(condition.getFrequency()).append(")\n");
+                    }
+                }
+            }
+            
+            if (pattern.hasOrderBy()) {
+                queryInfo.append("    ORDER BY: ")
+                        .append(String.join(", ", pattern.getOrderByColumns()))
+                        .append("\n");
+            }
+            
+            if (pattern.hasJoins()) {
+                queryInfo.append("    JOINS: ")
+                        .append(String.join(", ", pattern.getJoinedEntities()))
+                        .append("\n");
+            }
+            
+            if (pattern.isHasAggregation()) {
+                queryInfo.append("    Contains aggregation functions\n");
+            }
+            
+            if (pattern.isHasPagination()) {
+                queryInfo.append("    Uses pagination (Skip/Take)\n");
+            }
+            
+            if (pattern.isHasComplexWhere()) {
+                queryInfo.append("    Complex WHERE clause with multiple conditions\n");
+            }
+        }
+        
+        return queryInfo.toString();
+    }
+
+    /**
+     * Serializes Entity Framework specific context information
+     */
+    private String serializeEntityFrameworkContext(String entityName, List<QueryPattern> patterns) {
+        StringBuilder efInfo = new StringBuilder();
+        
+        efInfo.append("**Entity Framework Context:**\n");
+        
+        // Find eager loading patterns
+        List<QueryPattern> eagerLoadingPatterns = patterns.stream()
+                .filter(p -> p.getQueryType() == QueryType.EAGER_LOADING ||
+                           p.getQueryType() == QueryType.COMPLEX_EAGER_LOADING)
+                .filter(p -> p.getTargetEntity().contains(entityName))
+                .toList();
+        
+        if (!eagerLoadingPatterns.isEmpty()) {
+            efInfo.append("**Navigation Properties (Include patterns):**\n");
+            for (QueryPattern pattern : eagerLoadingPatterns) {
+                efInfo.append("  - ").append(pattern.getTargetEntity())
+                        .append(" (frequency: ").append(pattern.getFrequency()).append(")\n");
+            }
+        }
+        
+        // Find parameter usage
+        List<QueryPattern> parameterPatterns = patterns.stream()
+                .filter(p -> p.getTargetEntity().equalsIgnoreCase(entityName) && 
+                           !p.getParameterTypes().isEmpty())
+                .toList();
+        
+        if (!parameterPatterns.isEmpty()) {
+            efInfo.append("**Parameter Usage:**\n");
+            Set<String> allParameters = new HashSet<>();
+            for (QueryPattern pattern : parameterPatterns) {
+                allParameters.addAll(pattern.getParameterTypes());
+            }
+            for (String param : allParameters) {
+                efInfo.append("  - ").append(param).append("\n");
+            }
+        }
+        
+        // Query complexity indicators
+        long complexQueryCount = patterns.stream()
+                .filter(p -> p.getTargetEntity().equalsIgnoreCase(entityName))
+                .filter(p -> p.isHasComplexWhere() || p.isHasAggregation() || 
+                           p.getQueryType() == QueryType.COMPLEX_EAGER_LOADING)
+                .count();
+        
+        if (complexQueryCount > 0) {
+            efInfo.append("**Complexity Indicators:**\n");
+            efInfo.append("  - Complex queries: ").append(complexQueryCount).append("\n");
+        }
+        
+        return efInfo.toString();
     }
 }
