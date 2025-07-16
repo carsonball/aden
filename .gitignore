@@ -54,8 +54,10 @@ Thumbs.db
 samples/**/bin/
 samples/**/obj/
 samples/**/.vs/
+samples/TestEcommerceApp/packages/
 *.user
 *.suo
+*.sln
 
 # Logs
 *.log
