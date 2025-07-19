@@ -65,4 +65,4 @@ samples/TestEcommerceApp/packages/
 # Aden
 recommendations.md
 recommendations.json
-query_store_export.json
+query_store_analysis.json

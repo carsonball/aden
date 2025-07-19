@@ -103,10 +103,22 @@ public class DotNetAnalyzer {
     }
 
     public List<NoSQLRecommendation> generateRecommendations(AnalysisResult result) {
+        return generateRecommendations(result, null, null, null);
+    }
+    
+    public List<NoSQLRecommendation> generateRecommendations(AnalysisResult result, 
+                                                            DatabaseSchema schema,
+                                                            List<QueryPattern> queryPatterns,
+                                                            Map<String, Object> productionMetrics) {
         log.info("Generating AI-powered recommendations for {} candidates",
                 result.getDenormalizationCandidates().size());
+        
+        if (productionMetrics != null && !productionMetrics.isEmpty()) {
+            log.info("Including production metrics from Query Store in recommendation generation");
+        }
 
-        List<NoSQLRecommendation> recommendations = recommendationEngine.generateRecommendations(result);
+        List<NoSQLRecommendation> recommendations = recommendationEngine.generateRecommendations(
+            result, schema, queryPatterns, productionMetrics);
 
         // Apply target service filter
         if (!config.getTargetServices().isEmpty() &&

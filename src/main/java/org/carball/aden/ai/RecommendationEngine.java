@@ -63,6 +63,13 @@ public class RecommendationEngine {
     public List<NoSQLRecommendation> generateRecommendations(AnalysisResult analysis, 
                                                             DatabaseSchema schema, 
                                                             List<QueryPattern> queryPatterns) {
+        return generateRecommendations(analysis, schema, queryPatterns, null);
+    }
+    
+    public List<NoSQLRecommendation> generateRecommendations(AnalysisResult analysis, 
+                                                            DatabaseSchema schema, 
+                                                            List<QueryPattern> queryPatterns,
+                                                            Map<String, Object> productionMetrics) {
         List<NoSQLRecommendation> recommendations = new ArrayList<>();
 
         // Check if we should skip AI
@@ -82,7 +89,7 @@ public class RecommendationEngine {
 
         for (DenormalizationCandidate candidate : analysis.getDenormalizationCandidates()) {
             try {
-                NoSQLRecommendation recommendation = generateSingleRecommendation(candidate, analysis, schema, queryPatterns);
+                NoSQLRecommendation recommendation = generateSingleRecommendation(candidate, analysis, schema, queryPatterns, productionMetrics);
                 recommendations.add(recommendation);
 
                 log.debug("Generated recommendation for {}: {} ({})",
@@ -105,9 +112,10 @@ public class RecommendationEngine {
 
     private NoSQLRecommendation generateSingleRecommendation(
             DenormalizationCandidate candidate, AnalysisResult analysis,
-            DatabaseSchema schema, List<QueryPattern> queryPatterns) {
+            DatabaseSchema schema, List<QueryPattern> queryPatterns,
+            Map<String, Object> productionMetrics) {
 
-        String prompt = buildRecommendationPrompt(candidate, analysis, schema, queryPatterns);
+        String prompt = buildRecommendationPrompt(candidate, analysis, schema, queryPatterns, productionMetrics);
 
         ChatCompletionRequest request = ChatCompletionRequest.builder()
                 .model(MODEL)
@@ -135,7 +143,8 @@ public class RecommendationEngine {
     private String buildRecommendationPrompt(DenormalizationCandidate candidate,
                                              AnalysisResult analysis,
                                              DatabaseSchema schema,
-                                             List<QueryPattern> queryPatterns) {
+                                             List<QueryPattern> queryPatterns,
+                                             Map<String, Object> productionMetrics) {
         StringBuilder prompt = new StringBuilder();
 
         prompt.append("## Entity Analysis:\n\n");
@@ -175,6 +184,13 @@ public class RecommendationEngine {
             prompt.append(serializeQueryPatterns(candidate.getPrimaryEntity(), queryPatterns));
             prompt.append("\n");
             prompt.append(serializeEntityFrameworkContext(candidate.getPrimaryEntity(), queryPatterns));
+            prompt.append("\n");
+        }
+        
+        // Add production metrics from Query Store if available
+        if (productionMetrics != null && !productionMetrics.isEmpty()) {
+            prompt.append("## Production Usage Metrics (from SQL Server Query Store):\n\n");
+            prompt.append(serializeProductionMetrics(candidate, productionMetrics));
             prompt.append("\n");
         }
 
@@ -619,5 +635,136 @@ public class RecommendationEngine {
         }
         
         return efInfo.toString();
+    }
+    
+    /**
+     * Serializes production metrics from Query Store analysis
+     */
+    private String serializeProductionMetrics(DenormalizationCandidate candidate, 
+                                            Map<String, Object> productionMetrics) {
+        StringBuilder metricsInfo = new StringBuilder();
+        
+        // Extract qualified metrics
+        @SuppressWarnings("unchecked")
+        Map<String, Object> qualifiedMetrics = (Map<String, Object>) productionMetrics.get("qualifiedMetrics");
+        if (qualifiedMetrics == null) {
+            return "No production metrics available\n";
+        }
+        
+        // Total executions and operations breakdown
+        Object totalExecutions = qualifiedMetrics.get("totalExecutions");
+        if (totalExecutions != null) {
+            metricsInfo.append("**Total Query Executions:** ")
+                    .append(String.format("%,d", ((Number) totalExecutions).longValue()))
+                    .append("\n");
+        }
+        
+        // Operation breakdown
+        @SuppressWarnings("unchecked")
+        Map<String, Object> operations = (Map<String, Object>) qualifiedMetrics.get("operationBreakdown");
+        if (operations != null && !operations.isEmpty()) {
+            metricsInfo.append("**Operation Breakdown:**\n");
+            operations.forEach((op, count) -> {
+                metricsInfo.append("  - ").append(op).append(": ")
+                        .append(String.format("%,d", ((Number) count).longValue()))
+                        .append(" executions\n");
+            });
+        }
+        
+        // Read/Write ratio
+        Object readWriteRatio = qualifiedMetrics.get("readWriteRatio");
+        if (readWriteRatio != null) {
+            metricsInfo.append("**Read/Write Ratio:** ")
+                    .append(String.format("%.1f:1", ((Number) readWriteRatio).doubleValue()));
+            
+            Boolean isReadHeavy = (Boolean) qualifiedMetrics.get("isReadHeavy");
+            if (Boolean.TRUE.equals(isReadHeavy)) {
+                metricsInfo.append(" (Read-heavy workload)");
+            }
+            metricsInfo.append("\n");
+        }
+        
+        // Table access patterns
+        @SuppressWarnings("unchecked")
+        Map<String, Object> tablePatterns = (Map<String, Object>) qualifiedMetrics.get("tableAccessPatterns");
+        if (tablePatterns != null) {
+            Boolean hasCoAccess = (Boolean) tablePatterns.get("hasStrongCoAccessPatterns");
+            if (Boolean.TRUE.equals(hasCoAccess)) {
+                metricsInfo.append("\n**Table Co-Access Patterns:**\n");
+                
+                @SuppressWarnings("unchecked")
+                List<Map<String, Object>> combinations = 
+                    (List<Map<String, Object>>) tablePatterns.get("frequentTableCombinations");
+                
+                if (combinations != null) {
+                    for (Map<String, Object> combo : combinations) {
+                        @SuppressWarnings("unchecked")
+                        List<String> tables = (List<String>) combo.get("tables");
+                        
+                        // Check if this combination includes our candidate entity
+                        boolean relevantPattern = tables.stream()
+                            .anyMatch(table -> table.equalsIgnoreCase(candidate.getPrimaryEntity()) ||
+                                             candidate.getRelatedEntities().stream()
+                                                 .anyMatch(related -> table.equalsIgnoreCase(related)));
+                        
+                        if (relevantPattern) {
+                            Object executions = combo.get("totalExecutions");
+                            Object percentage = combo.get("executionPercentage");
+                            
+                            metricsInfo.append("  - **").append(String.join(" + ", tables)).append("**")
+                                    .append(" accessed together ")
+                                    .append(String.format("%,d", ((Number) executions).longValue()))
+                                    .append(" times");
+                            
+                            if (percentage != null) {
+                                metricsInfo.append(" (").append(String.format("%.1f%%", 
+                                        ((Number) percentage).doubleValue()))
+                                        .append(" of all queries)");
+                            }
+                            metricsInfo.append("\n");
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Performance characteristics
+        @SuppressWarnings("unchecked")
+        Map<String, Object> performance = (Map<String, Object>) qualifiedMetrics.get("performanceCharacteristics");
+        if (performance != null) {
+            metricsInfo.append("\n**Performance Characteristics:**\n");
+            
+            Object avgDuration = performance.get("avgQueryDurationMs");
+            if (avgDuration != null) {
+                metricsInfo.append("  - Average Query Duration: ")
+                        .append(String.format("%.2f ms", ((Number) avgDuration).doubleValue()))
+                        .append("\n");
+            }
+            
+            Object avgReads = performance.get("avgLogicalReads");
+            if (avgReads != null) {
+                metricsInfo.append("  - Average Logical Reads: ")
+                        .append(String.format("%.0f", ((Number) avgReads).doubleValue()))
+                        .append("\n");
+            }
+            
+            Boolean hasPerformanceIssues = (Boolean) performance.get("hasPerformanceIssues");
+            if (Boolean.TRUE.equals(hasPerformanceIssues)) {
+                metricsInfo.append("  - **WARNING:** Slow queries detected (>100ms)\n");
+            }
+        }
+        
+        // Access pattern distribution
+        @SuppressWarnings("unchecked")
+        Map<String, Object> accessPatterns = (Map<String, Object>) qualifiedMetrics.get("accessPatternDistribution");
+        if (accessPatterns != null && !accessPatterns.isEmpty()) {
+            metricsInfo.append("\n**Access Pattern Distribution:**\n");
+            accessPatterns.forEach((pattern, count) -> {
+                metricsInfo.append("  - ").append(pattern).append(": ")
+                        .append(count).append(" queries\n");
+            });
+        }
+        
+        return metricsInfo.toString();
     }
 }

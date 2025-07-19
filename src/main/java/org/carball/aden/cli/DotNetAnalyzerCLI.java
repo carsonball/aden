@@ -6,15 +6,21 @@ import org.carball.aden.config.*;
 import org.carball.aden.model.analysis.AnalysisResult;
 import org.carball.aden.model.analysis.NoSQLTarget;
 import org.carball.aden.model.query.QueryPattern;
+import org.carball.aden.model.query.QueryStoreQuery;
 import org.carball.aden.model.recommendation.NoSQLRecommendation;
 import org.carball.aden.output.MigrationReport;
+import org.carball.aden.parser.QueryStoreAnalyzer;
+import org.carball.aden.parser.QueryStoreConnector;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -43,7 +49,7 @@ public class DotNetAnalyzerCLI {
 
         try {
             DotNetAnalyzerConfig config = parseArgs(args);
-            
+            String connectionString = getConnectionString(args);
 
             System.out.println("\n🔍 Starting analysis...");
             System.out.println("   Schema file: " + config.getSchemaFile());
@@ -52,18 +58,31 @@ public class DotNetAnalyzerCLI {
             if (config.getMigrationProfile() != null) {
                 System.out.println("   Migration profile: " + config.getMigrationProfile());
             }
+            if (connectionString != null) {
+                System.out.println("   Query Store: enabled");
+            }
             System.out.println();
 
             DotNetAnalyzer analyzer = new DotNetAnalyzer(config, args);
 
-            // Step 1: Analyze
+            // Step 1: Analyze static code
             System.out.print("📊 Analyzing .NET Framework application... ");
             AnalysisResult result = analyzer.analyze();
             System.out.println("✓");
+            
+            // Step 2: Analyze Query Store if connection string provided
+            Map<String, Object> productionMetrics = null;
+            if (connectionString != null) {
+                System.out.print("📈 Analyzing Query Store production metrics... ");
+                productionMetrics = analyzeQueryStore(connectionString, config);
+                System.out.println("✓");
+            }
 
-            // Step 2: Generate recommendations
+            // Step 3: Generate recommendations with optional production metrics
             System.out.print("🤖 Generating AWS migration recommendations... ");
-            List<NoSQLRecommendation> recommendations = analyzer.generateRecommendations(result);
+            List<NoSQLRecommendation> recommendations = productionMetrics != null ?
+                analyzer.generateRecommendations(result, null, null, productionMetrics) :
+                analyzer.generateRecommendations(result);
             System.out.println("✓");
 
             // Step 3: Output results
@@ -127,6 +146,7 @@ public class DotNetAnalyzerCLI {
         System.out.println("  --api-key           OpenAI API key (or set OPENAI_API_KEY env var)");
         System.out.println("  --target            AWS target: dynamodb|documentdb|neptune|all (default: all)");
         System.out.println("  --complexity        Include only: low|medium|high|all (default: all)");
+        System.out.println("  --query-store       SQL Server connection string for Query Store analysis");
         System.out.println("  --verbose, -v       Enable verbose output");
         System.out.println("  --help, -h          Show this help message");
         System.out.println();
@@ -150,8 +170,12 @@ public class DotNetAnalyzerCLI {
         System.out.println("  # Override specific thresholds");
         System.out.println("  java -jar dotnet-analyzer.jar schema.sql ./src/ --thresholds.high-frequency 10");
         System.out.println();
+        System.out.println("  # Include Query Store production metrics (JDBC format required)");
+        System.out.println("  java -jar dotnet-analyzer.jar schema.sql ./src/ --query-store \"jdbc:sqlserver://localhost:1433;databaseName=TestApp;user=sa;password=Pass123;trustServerCertificate=true\"");
+        System.out.println();
         System.out.println("Environment Variables:");
         System.out.println("  OPENAI_API_KEY                Your OpenAI API key for AI-powered recommendations");
+        System.out.println("  ADEN_CONNECTION_STRING        SQL Server connection string (alternative to --query-store)");
         System.out.println("  ADEN_HIGH_FREQUENCY_THRESHOLD  Override high frequency threshold");
         System.out.println("  ADEN_MEDIUM_FREQUENCY_THRESHOLD Override medium frequency threshold");
         System.out.println();
@@ -230,6 +254,13 @@ public class DotNetAnalyzerCLI {
                     config.setMigrationProfile(args[++i]);
                     break;
 
+                case "--query-store":
+                    if (i + 1 >= args.length) {
+                        throw new IllegalArgumentException("Connection string not specified");
+                    }
+                    // Just skip the value here, it will be handled by getConnectionString()
+                    i++;
+                    break;
 
                 case "--help-profiles":
                 case "--help-thresholds":
@@ -397,4 +428,88 @@ public class DotNetAnalyzerCLI {
         }
     }
     
+    private static String getConnectionString(String[] args) {
+        // First check command line args
+        for (int i = 0; i < args.length - 1; i++) {
+            if ("--query-store".equals(args[i])) {
+                return args[i + 1];
+            }
+        }
+        
+        // Then check environment variable
+        String envConnectionString = System.getenv("ADEN_CONNECTION_STRING");
+        if (envConnectionString != null && !envConnectionString.isEmpty()) {
+            log.debug("Using connection string from ADEN_CONNECTION_STRING environment variable");
+            return envConnectionString;
+        }
+        
+        return null;
+    }
+    
+    private static Map<String, Object> analyzeQueryStore(String connectionString, DotNetAnalyzerConfig config) throws IOException {
+        try {
+            // Validate JDBC format
+            if (!connectionString.startsWith("jdbc:sqlserver://")) {
+                throw new IllegalArgumentException(
+                    "Connection string must be in JDBC format. " +
+                    "Example: jdbc:sqlserver://localhost:1433;databaseName=TestApp;user=sa;password=Pass123;trustServerCertificate=true"
+                );
+            }
+            
+            // Extract database name from connection string
+            String databaseName = extractDatabaseName(connectionString);
+            
+            // Connect and extract Query Store data
+            QueryStoreConnector connector = new QueryStoreConnector(connectionString);
+            List<QueryStoreQuery> queries = connector.getAllQueries();
+            
+            if (queries.isEmpty()) {
+                log.warn("No queries found in Query Store");
+                return null;
+            }
+            
+            // Analyze the queries
+            QueryStoreAnalyzer analyzer = new QueryStoreAnalyzer();
+            File tempFile = File.createTempFile("query_store_analysis_", ".json");
+            tempFile.deleteOnExit();
+            
+            analyzer.analyzeAndExport(queries, tempFile.getAbsolutePath(), databaseName);
+            
+            // Read the analysis results
+            ObjectMapper mapper = new ObjectMapper();
+            @SuppressWarnings("unchecked")
+            Map<String, Object> analysisResult = mapper.readValue(tempFile, Map.class);
+            
+            // Log summary if verbose
+            if (config.isVerbose()) {
+                System.out.println("     - Analyzed " + queries.size() + " queries from Query Store");
+                @SuppressWarnings("unchecked")
+                Map<String, Object> metrics = (Map<String, Object>) analysisResult.get("qualifiedMetrics");
+                if (metrics != null) {
+                    Object totalExec = metrics.get("totalExecutions");
+                    if (totalExec != null) {
+                        System.out.println("     - Total executions: " + String.format("%,d", ((Number) totalExec).longValue()));
+                    }
+                }
+            }
+            
+            return analysisResult;
+            
+        } catch (Exception e) {
+            log.error("Failed to analyze Query Store", e);
+            throw new IOException("Query Store analysis failed: " + e.getMessage(), e);
+        }
+    }
+    
+    private static String extractDatabaseName(String connectionString) {
+        // Extract from JDBC format - look for databaseName=
+        String[] parts = connectionString.split(";");
+        for (String part : parts) {
+            String trimmed = part.trim();
+            if (trimmed.toLowerCase().startsWith("databasename=")) {
+                return trimmed.substring(trimmed.indexOf('=') + 1).trim();
+            }
+        }
+        return "Unknown";
+    }
 }
