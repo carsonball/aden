@@ -135,7 +135,7 @@ public class QueryStoreJsonExporter {
             }
             
             // Extract queries
-            List<QueryStoreQuery> queries = connector.getTopQueriesByExecution();
+            List<QueryStoreQuery> queries = connector.getAllQueries();
             System.out.printf("Extracted %d queries from Query Store%n", queries.size());
             
             // Export to JSON
