@@ -4,9 +4,12 @@ import lombok.Data;
 import org.carball.aden.model.entity.EntityModel;
 import org.carball.aden.model.query.QueryPattern;
 import org.carball.aden.model.query.QueryType;
+import org.carball.aden.model.schema.RelationshipType;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Data
 public class EntityUsageProfile {
@@ -16,6 +19,7 @@ public class EntityUsageProfile {
     private int writeCount = 0;
     private List<String> alwaysLoadedWithEntities = new ArrayList<>();
     private List<QueryPattern> queryPatterns = new ArrayList<>();
+    private Map<String, RelationshipType> relatedEntities = new HashMap<>();
 
     public EntityUsageProfile(EntityModel entity) {
         this.entity = entity;
@@ -47,5 +51,9 @@ public class EntityUsageProfile {
     public boolean hasComplexRelationships() {
         return entity.getNavigationProperties().size() > 3 ||
                 entity.hasCircularReferences();
+    }
+    
+    public void addRelatedEntity(String entityName, RelationshipType type) {
+        relatedEntities.put(entityName, type);
     }
 }

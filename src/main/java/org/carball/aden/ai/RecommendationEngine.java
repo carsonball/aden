@@ -87,29 +87,68 @@ public class RecommendationEngine {
         log.info("Generating AI recommendations for {} candidates",
                 analysis.getDenormalizationCandidates().size());
 
-        for (DenormalizationCandidate candidate : analysis.getDenormalizationCandidates()) {
-            try {
-                NoSQLRecommendation recommendation = generateSingleRecommendation(candidate, analysis, schema, queryPatterns, productionMetrics);
-                recommendations.add(recommendation);
+        try {
+            // Batch all entities into a single request
+            List<NoSQLRecommendation> batchRecommendations = generateBatchRecommendations(
+                    analysis, schema, queryPatterns, productionMetrics);
+            recommendations.addAll(batchRecommendations);
+            
+            log.info("Generated {} recommendations from AI", batchRecommendations.size());
 
-                log.debug("Generated recommendation for {}: {} ({})",
-                        candidate.getPrimaryEntity(),
-                        recommendation.getTargetService(),
-                        recommendation.getEstimatedCostSaving());
-
-            } catch (Exception e) {
-                log.error("Error generating recommendation for {}: {}",
-                        candidate.getPrimaryEntity(), e.getMessage());
-
-                // Create fallback recommendation
-                NoSQLRecommendation fallback = createFallbackRecommendation(candidate);
-                recommendations.add(fallback);
+        } catch (Exception e) {
+            log.error("Error generating batch recommendations: {}", e.getMessage());
+            
+            // Fall back to individual recommendations if batch fails
+            log.info("Falling back to individual recommendations");
+            for (DenormalizationCandidate candidate : analysis.getDenormalizationCandidates()) {
+                try {
+                    NoSQLRecommendation recommendation = generateSingleRecommendation(
+                            candidate, analysis, schema, queryPatterns, productionMetrics);
+                    recommendations.add(recommendation);
+                } catch (Exception ex) {
+                    log.error("Error generating recommendation for {}: {}",
+                            candidate.getPrimaryEntity(), ex.getMessage());
+                    NoSQLRecommendation fallback = createFallbackRecommendation(candidate);
+                    recommendations.add(fallback);
+                }
             }
         }
 
         return recommendations;
     }
 
+    private List<NoSQLRecommendation> generateBatchRecommendations(
+            AnalysisResult analysis,
+            DatabaseSchema schema,
+            List<QueryPattern> queryPatterns,
+            Map<String, Object> productionMetrics) {
+        
+        String prompt = buildBatchRecommendationPrompt(analysis, schema, queryPatterns, productionMetrics);
+        
+        ChatCompletionRequest request = ChatCompletionRequest.builder()
+                .model(MODEL)
+                .messages(Arrays.asList(
+                        new ChatMessage(ChatMessageRole.SYSTEM.value(), SYSTEM_PROMPT),
+                        new ChatMessage(ChatMessageRole.USER.value(), prompt)
+                ))
+                .temperature(TEMPERATURE)
+                .maxTokens(MAX_TOKENS * 3) // More tokens for multiple entities
+                .build();
+
+        log.trace("Sending batch prompt to OpenAI for {} entities", 
+                analysis.getDenormalizationCandidates().size());
+        log.trace("System prompt:\n{}", SYSTEM_PROMPT);
+        log.trace("User prompt:\n{}", prompt);
+
+        ChatCompletionResult result = openAiService.createChatCompletion(request);
+        String response = result.getChoices().get(0).getMessage().getContent();
+
+        log.trace("Received response: {} characters", response.length());
+        log.trace("OpenAI response:\n{}", response);
+
+        return parseBatchRecommendationResponse(response, analysis.getDenormalizationCandidates());
+    }
+    
     private NoSQLRecommendation generateSingleRecommendation(
             DenormalizationCandidate candidate, AnalysisResult analysis,
             DatabaseSchema schema, List<QueryPattern> queryPatterns,
@@ -140,6 +179,228 @@ public class RecommendationEngine {
         return parseRecommendationResponse(response, candidate);
     }
 
+    private String buildBatchRecommendationPrompt(AnalysisResult analysis,
+                                                  DatabaseSchema schema,
+                                                  List<QueryPattern> queryPatterns,
+                                                  Map<String, Object> productionMetrics) {
+        StringBuilder prompt = new StringBuilder();
+        
+        // Database overview
+        prompt.append("## Database Overview:\n\n");
+        prompt.append("**Total Entities:** ").append(analysis.getDenormalizationCandidates().size())
+                .append(" candidates for migration\n");
+        if (schema != null) {
+            prompt.append("**Total Tables:** ").append(schema.getTables().size()).append("\n");
+            prompt.append("**Total Relationships:** ").append(schema.getRelationships().size()).append("\n");
+        }
+        prompt.append("**Primary Access Pattern:** E-commerce/Business application\n\n");
+        
+        // Entity relationships section
+        prompt.append("## Entity Relationships:\n\n");
+        if (schema != null) {
+            prompt.append(serializeAllRelationships(analysis.getDenormalizationCandidates(), schema));
+        } else {
+            prompt.append("Schema information not available\n");
+        }
+        prompt.append("\n");
+        
+        // Cross-entity access patterns
+        prompt.append("## Cross-Entity Access Patterns:\n\n");
+        if (productionMetrics != null) {
+            prompt.append(serializeCrossEntityPatterns(analysis.getDenormalizationCandidates(), productionMetrics));
+        } else {
+            prompt.append("Production metrics not available\n");
+        }
+        prompt.append("\n");
+        
+        // Individual entity analyses
+        prompt.append("## Entity Analyses:\n\n");
+        int entityNum = 1;
+        for (DenormalizationCandidate candidate : analysis.getDenormalizationCandidates()) {
+            prompt.append("### Entity ").append(entityNum++).append(": ")
+                    .append(candidate.getPrimaryEntity()).append("\n\n");
+            prompt.append(buildEntityAnalysis(candidate, analysis, schema, queryPatterns, productionMetrics));
+            prompt.append("\n");
+        }
+        
+        // Requirements for batch recommendations
+        prompt.append("## Requirements:\n\n");
+        prompt.append("Please provide AWS NoSQL recommendations for ALL entities above.\n\n");
+        prompt.append("Consider the following when making recommendations:\n");
+        prompt.append("1. **Relationships between entities** - Consider single-table design for related entities\n");
+        prompt.append("2. **Cross-entity access patterns** - Entities accessed together should be co-located\n");
+        prompt.append("3. **Consistent partition key strategy** - Use similar approaches across related entities\n");
+        prompt.append("4. **Cost optimization** - Minimize cross-partition queries\n\n");
+        
+        prompt.append("For EACH entity, provide:\n\n");
+        prompt.append("### [Entity Name] Recommendation:\n\n");
+        prompt.append("1. **Target Service**: [DynamoDB/DocumentDB/Neptune] with justification\n");
+        prompt.append("2. **Table/Collection Design**: Specific schema design\n");
+        prompt.append("3. **Partition Key Strategy**: Attribute name, type, and example values\n");
+        prompt.append("4. **Sort Key Strategy** (if applicable): Attribute name, type, and example values\n");
+        prompt.append("5. **Global Secondary Indexes**: Name, keys, and purpose for each GSI\n");
+        prompt.append("6. **Access Patterns**: How common queries will work\n");
+        prompt.append("7. **Cost Estimation**: Percentage savings vs SQL Server Enterprise\n");
+        prompt.append("8. **Migration Effort**: Time estimate and complexity\n\n");
+        
+        prompt.append("If multiple entities should share a table (single-table design), ");
+        prompt.append("explain the unified design and how each entity fits into it.\n");
+        
+        return prompt.toString();
+    }
+    
+    private String buildEntityAnalysis(DenormalizationCandidate candidate,
+                                     AnalysisResult analysis,
+                                     DatabaseSchema schema,
+                                     List<QueryPattern> queryPatterns,
+                                     Map<String, Object> productionMetrics) {
+        StringBuilder entityInfo = new StringBuilder();
+        
+        entityInfo.append("**Primary Entity:** ").append(candidate.getPrimaryEntity()).append("\n");
+        entityInfo.append("**Related Entities:** ").append(
+                candidate.getRelatedEntities().isEmpty() ? "None" : 
+                String.join(", ", candidate.getRelatedEntities())
+        ).append("\n");
+        entityInfo.append("**Migration Complexity:** ").append(candidate.getComplexity()).append("\n");
+        entityInfo.append("**Denormalization Reason:** ").append(candidate.getReason()).append("\n");
+        entityInfo.append("**Score:** ").append(candidate.getScore()).append("\n\n");
+        
+        // Add usage profile details
+        EntityUsageProfile profile = analysis.getUsageProfiles().get(candidate.getPrimaryEntity());
+        if (profile != null) {
+            entityInfo.append("**Usage Patterns:**\n");
+            entityInfo.append("- Eager Loading: ").append(profile.getEagerLoadingCount()).append(" occurrences\n");
+            entityInfo.append("- Read/Write Ratio: ").append(String.format("%.1f:1\n", profile.getReadToWriteRatio()));
+            entityInfo.append("- Access Pattern: ").append(
+                    profile.hasSimpleKeyBasedAccess() ? "Simple key-based" : "Complex queries"
+            ).append("\n\n");
+        }
+        
+        // Add table-specific production metrics if available
+        if (productionMetrics != null) {
+            entityInfo.append(serializeEntityProductionMetrics(candidate.getPrimaryEntity(), productionMetrics));
+        }
+        
+        return entityInfo.toString();
+    }
+    
+    private String serializeAllRelationships(List<DenormalizationCandidate> candidates, DatabaseSchema schema) {
+        StringBuilder relationships = new StringBuilder();
+        Set<String> processedRelationships = new HashSet<>();
+        
+        for (DenormalizationCandidate candidate : candidates) {
+            String entityName = candidate.getPrimaryEntity();
+            
+            for (Relationship rel : schema.getRelationships()) {
+                String relKey = rel.getFromTable() + " -> " + rel.getToTable();
+                
+                if (!processedRelationships.contains(relKey) &&
+                    (rel.getFromTable().equalsIgnoreCase(entityName) || 
+                     rel.getToTable().equalsIgnoreCase(entityName))) {
+                    
+                    relationships.append("- **").append(rel.getFromTable())
+                            .append("** (").append(rel.getType().toString().replace("_TO_", "-"))
+                            .append(") → **").append(rel.getToTable()).append("**");
+                    
+                    // Add co-access information if available
+                    if (!candidate.getRelatedEntities().isEmpty() && 
+                        candidate.getRelatedEntities().contains(rel.getToTable())) {
+                        relationships.append(" [Always loaded together]");
+                    }
+                    
+                    relationships.append("\n");
+                    processedRelationships.add(relKey);
+                }
+            }
+        }
+        
+        if (relationships.length() == 0) {
+            relationships.append("No relationships found in schema\n");
+        }
+        
+        return relationships.toString();
+    }
+    
+    private String serializeCrossEntityPatterns(List<DenormalizationCandidate> candidates, 
+                                               Map<String, Object> productionMetrics) {
+        StringBuilder patterns = new StringBuilder();
+        
+        @SuppressWarnings("unchecked")
+        Map<String, Object> qualifiedMetrics = (Map<String, Object>) productionMetrics.get("qualifiedMetrics");
+        if (qualifiedMetrics == null) {
+            return "No production metrics available\n";
+        }
+        
+        @SuppressWarnings("unchecked")
+        Map<String, Object> tablePatterns = (Map<String, Object>) qualifiedMetrics.get("tableAccessPatterns");
+        if (tablePatterns != null) {
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> combinations = 
+                (List<Map<String, Object>>) tablePatterns.get("frequentTableCombinations");
+            
+            if (combinations != null) {
+                for (Map<String, Object> combo : combinations) {
+                    @SuppressWarnings("unchecked")
+                    List<String> tables = (List<String>) combo.get("tables");
+                    Object executions = combo.get("totalExecutions");
+                    Object percentage = combo.get("executionPercentage");
+                    
+                    patterns.append("- **").append(String.join(" + ", tables)).append("**: ")
+                            .append(String.format("%,d", ((Number) executions).longValue()))
+                            .append(" queries (");
+                    
+                    if (percentage != null) {
+                        patterns.append(String.format("%.1f%%", ((Number) percentage).doubleValue()));
+                    }
+                    patterns.append(" of all queries)\n");
+                }
+            }
+        }
+        
+        if (patterns.length() == 0) {
+            patterns.append("No cross-entity patterns detected\n");
+        }
+        
+        return patterns.toString();
+    }
+    
+    private String serializeEntityProductionMetrics(String entityName, Map<String, Object> productionMetrics) {
+        // This method extracts entity-specific metrics from the overall production metrics
+        // For now, we'll include general metrics, but in a real implementation,
+        // we'd filter for entity-specific data
+        StringBuilder metrics = new StringBuilder();
+        metrics.append("**Production Metrics:** Available in Query Store analysis\n");
+        return metrics.toString();
+    }
+    
+    private List<NoSQLRecommendation> parseBatchRecommendationResponse(String response, 
+                                                                      List<DenormalizationCandidate> candidates) {
+        List<NoSQLRecommendation> recommendations = new ArrayList<>();
+        
+        // Split response by entity recommendations
+        for (DenormalizationCandidate candidate : candidates) {
+            String entityName = candidate.getPrimaryEntity();
+            
+            // Find the section for this entity
+            Pattern entityPattern = Pattern.compile(
+                    "###\\s*" + Pattern.quote(entityName) + "\\s*Recommendation:([^#]+)(?=###|$)",
+                    Pattern.CASE_INSENSITIVE | Pattern.DOTALL
+            );
+            Matcher matcher = entityPattern.matcher(response);
+            
+            if (matcher.find()) {
+                String entitySection = matcher.group(1);
+                NoSQLRecommendation recommendation = parseRecommendationResponse(entitySection, candidate);
+                recommendations.add(recommendation);
+            } else {
+                log.warn("Could not find recommendation for entity: {}", entityName);
+                recommendations.add(createFallbackRecommendation(candidate));
+            }
+        }
+        
+        return recommendations;
+    }
+    
     private String buildRecommendationPrompt(DenormalizationCandidate candidate,
                                              AnalysisResult analysis,
                                              DatabaseSchema schema,
@@ -220,10 +481,23 @@ public class RecommendationEngine {
         NoSQLTarget target = parseTargetService(response);
         recommendation.setTargetService(target != null ? target : candidate.getRecommendedTarget());
 
-        // Parse table name
-        String tableName = parseSection(response, "Table/Collection Design", "Table Name");
-        recommendation.setTableName(tableName != null ? tableName :
-                candidate.getPrimaryEntity() + (target == NoSQLTarget.DYNAMODB ? "Table" : "Collection"));
+        // Parse table name - look for table name in the Table/Collection Design section
+        String tableDesign = parseSection(response, "Table/Collection Design", null);
+        String tableName = null;
+        if (tableDesign != null) {
+            // Look for patterns like "table named 'CustomerData'" or "single table named CustomerData"
+            Pattern tableNamePattern = Pattern.compile("table\\s+(?:named\\s+)?['\"]?([\\w]+)['\"]?", Pattern.CASE_INSENSITIVE);
+            Matcher tableNameMatcher = tableNamePattern.matcher(tableDesign);
+            if (tableNameMatcher.find()) {
+                tableName = tableNameMatcher.group(1);
+            }
+        }
+        
+        // If no table name found in design section, default to entity name + suffix
+        if (tableName == null || tableName.length() > 50) { // Avoid setting the whole description as table name
+            tableName = candidate.getPrimaryEntity() + (target == NoSQLTarget.DYNAMODB ? "Table" : "Collection");
+        }
+        recommendation.setTableName(tableName);
 
         // Parse partition key
         recommendation.setPartitionKey(parseKeyStrategy(response, "Partition Key"));
@@ -310,10 +584,38 @@ public class RecommendationEngine {
         if (matcher.find()) {
             String keyContent = matcher.group(1);
 
-            // Extract attribute name
-            Pattern attrPattern = Pattern.compile("(?:Attribute|Name):?\\s*`?([\\w#]+)`?", Pattern.CASE_INSENSITIVE);
-            Matcher attrMatcher = attrPattern.matcher(keyContent);
-            String attribute = attrMatcher.find() ? attrMatcher.group(1) : keyType.toLowerCase() + "Key";
+            // Extract attribute name - improved patterns
+            String attribute = null;
+            
+            // Pattern 1: "will be CustomerId"
+            Pattern willBePattern = Pattern.compile("will be ([\\w]+)", Pattern.CASE_INSENSITIVE);
+            Matcher willBeMatcher = willBePattern.matcher(keyContent);
+            if (willBeMatcher.find()) {
+                attribute = willBeMatcher.group(1);
+            }
+            
+            // Pattern 2: "Attribute: CustomerId" or "Name: CustomerId"
+            if (attribute == null) {
+                Pattern attrPattern = Pattern.compile("(?:Attribute|Name):?\\s*`?([\\w#]+)`?", Pattern.CASE_INSENSITIVE);
+                Matcher attrMatcher = attrPattern.matcher(keyContent);
+                if (attrMatcher.find()) {
+                    attribute = attrMatcher.group(1);
+                }
+            }
+            
+            // Pattern 3: Look for "CustomerId (PK)" or similar
+            if (attribute == null) {
+                Pattern pkPattern = Pattern.compile("([\\w]+)\\s*\\(PK\\)", Pattern.CASE_INSENSITIVE);
+                Matcher pkMatcher = pkPattern.matcher(keyContent);
+                if (pkMatcher.find()) {
+                    attribute = pkMatcher.group(1);
+                }
+            }
+            
+            // Default if nothing found
+            if (attribute == null) {
+                attribute = keyType.toLowerCase().replace(" ", "") + "Key";
+            }
 
             // Extract type
             Pattern typePattern = Pattern.compile("Type:?\\s*([SNB])", Pattern.CASE_INSENSITIVE);

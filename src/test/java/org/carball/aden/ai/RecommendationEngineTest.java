@@ -2,14 +2,17 @@ package org.carball.aden.ai;
 
 import org.carball.aden.model.analysis.*;
 import org.carball.aden.model.entity.EntityModel;
+import org.carball.aden.model.entity.NavigationProperty;
+import org.carball.aden.model.entity.NavigationType;
 import org.carball.aden.model.query.*;
+import org.carball.aden.model.recommendation.NoSQLRecommendation;
 import org.carball.aden.model.schema.*;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Method;
-import java.util.Arrays;
-import java.util.List;
+import java.util.*;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -109,42 +112,147 @@ public class RecommendationEngineTest {
         
         assertThat(result).contains("No query patterns found");
     }
-
+    
     @Test
-    public void shouldIncludeSchemaInformationInPrompt() throws Exception {
-        Method method = RecommendationEngine.class.getDeclaredMethod("buildRecommendationPrompt", 
-                DenormalizationCandidate.class, AnalysisResult.class, DatabaseSchema.class, List.class);
+    public void shouldBuildEntityAnalysisSection() throws Exception {
+        Method method = RecommendationEngine.class.getDeclaredMethod("buildEntityAnalysis", 
+                DenormalizationCandidate.class, AnalysisResult.class, DatabaseSchema.class, 
+                List.class, Map.class);
         method.setAccessible(true);
         
         DenormalizationCandidate candidate = createTestCandidate();
         AnalysisResult analysis = createTestAnalysis();
         
-        String prompt = (String) method.invoke(engine, candidate, analysis, testSchema, testQueryPatterns);
+        String result = (String) method.invoke(engine, candidate, analysis, testSchema, testQueryPatterns, null);
         
-        // Assert schema sections are included
-        assertThat(prompt).contains("## Database Schema Context:");
-        assertThat(prompt).contains("**Table:** Customer");
-        assertThat(prompt).contains("## Query Pattern Analysis:");
-        assertThat(prompt).contains("**Query Patterns:");
-        assertThat(prompt).contains("## Requirements:");
+        assertThat(result).contains("**Primary Entity:** Customer");
+        assertThat(result).contains("**Related Entities:** Orders");
+        assertThat(result).contains("**Migration Complexity:** MEDIUM");
+        assertThat(result).contains("**Usage Patterns:**");
+        assertThat(result).contains("Eager Loading: 10 occurrences");
+    }
+    
+    @Test
+    public void shouldSerializeAllRelationships() throws Exception {
+        Method method = RecommendationEngine.class.getDeclaredMethod("serializeAllRelationships", 
+                List.class, DatabaseSchema.class);
+        method.setAccessible(true);
+        
+        List<DenormalizationCandidate> candidates = Arrays.asList(
+            createTestCandidate(),
+            DenormalizationCandidate.builder()
+                .primaryEntity("Order")
+                .relatedEntities(Arrays.asList("Customer"))
+                .complexity(MigrationComplexity.LOW)
+                .reason("Test")
+                .recommendedTarget(NoSQLTarget.DYNAMODB)
+                .score(50)
+                .build()
+        );
+        
+        // Add Order table to schema
+        Table orderTable = new Table("Orders");
+        orderTable.addColumn(Column.builder()
+                .name("Id")
+                .dataType("int")
+                .primaryKey(true)
+                .build());
+        orderTable.addColumn(Column.builder()
+                .name("CustomerId")
+                .dataType("int")
+                .foreignKey(true)
+                .build());
+        testSchema.addTable(orderTable);
+        
+        String result = (String) method.invoke(engine, candidates, testSchema);
+        
+        assertThat(result).contains("Customer");
+        assertThat(result).contains("(ONE-MANY)");
+        assertThat(result).contains("Orders");
+        assertThat(result).contains("[Always loaded together]");
+    }
+    
+    @Test
+    public void shouldParseBatchRecommendationResponse() throws Exception {
+        Method method = RecommendationEngine.class.getDeclaredMethod("parseBatchRecommendationResponse", 
+                String.class, List.class);
+        method.setAccessible(true);
+        
+        String aiResponse = """
+            ### Customer Recommendation:
+            
+            1. **Target Service**: DynamoDB
+            2. **Table/Collection Design**: Single table design
+            3. **Partition Key Strategy**: The partition key will be CustomerId
+            
+            ### Order Recommendation:
+            
+            1. **Target Service**: DynamoDB
+            2. **Table/Collection Design**: Separate table
+            3. **Partition Key Strategy**: The partition key will be OrderId
+            """;
+        
+        List<DenormalizationCandidate> candidates = Arrays.asList(
+            createTestCandidate(),
+            DenormalizationCandidate.builder()
+                .primaryEntity("Order")
+                .relatedEntities(new ArrayList<>())
+                .complexity(MigrationComplexity.LOW)
+                .reason("Test")
+                .recommendedTarget(NoSQLTarget.DYNAMODB)
+                .score(50)
+                .build()
+        );
+        
+        @SuppressWarnings("unchecked")
+        List<NoSQLRecommendation> result = (List<NoSQLRecommendation>) method.invoke(engine, aiResponse, candidates);
+        
+        assertThat(result).hasSize(2);
+        assertThat(result.get(0).getPrimaryEntity()).isEqualTo("Customer");
+        assertThat(result.get(0).getTargetService()).isEqualTo(NoSQLTarget.DYNAMODB);
+        assertThat(result.get(0).getPartitionKey().getAttribute()).isEqualTo("CustomerId");
+        
+        assertThat(result.get(1).getPrimaryEntity()).isEqualTo("Order");
+        assertThat(result.get(1).getTargetService()).isEqualTo(NoSQLTarget.DYNAMODB);
+        assertThat(result.get(1).getPartitionKey().getAttribute()).isEqualTo("OrderId");
     }
 
     @Test
-    public void shouldFallbackWhenSchemaIsNull() throws Exception {
-        Method method = RecommendationEngine.class.getDeclaredMethod("buildRecommendationPrompt", 
-                DenormalizationCandidate.class, AnalysisResult.class, DatabaseSchema.class, List.class);
+    public void shouldIncludeSchemaInformationInBatchPrompt() throws Exception {
+        Method method = RecommendationEngine.class.getDeclaredMethod("buildBatchRecommendationPrompt", 
+                AnalysisResult.class, DatabaseSchema.class, List.class, Map.class);
         method.setAccessible(true);
         
-        DenormalizationCandidate candidate = createTestCandidate();
-        AnalysisResult analysis = createTestAnalysis();
+        AnalysisResult analysis = createTestAnalysisWithMultipleCandidates();
         
-        String prompt = (String) method.invoke(engine, candidate, analysis, null, null);
+        String prompt = (String) method.invoke(engine, analysis, testSchema, testQueryPatterns, null);
         
-        // Should not contain schema sections
-        assertThat(prompt).doesNotContain("## Database Schema Context:");
-        assertThat(prompt).doesNotContain("## Query Pattern Analysis:");
-        // But should still have basic sections
-        assertThat(prompt).contains("## Entity Analysis:");
+        // Assert new batch prompt structure
+        assertThat(prompt).contains("## Database Overview:");
+        assertThat(prompt).contains("## Entity Relationships:");
+        assertThat(prompt).contains("## Cross-Entity Access Patterns:");
+        assertThat(prompt).contains("## Entity Analyses:");
+        assertThat(prompt).contains("### Entity 1: Customer");
+        assertThat(prompt).contains("### Entity 2: Order");
+        assertThat(prompt).contains("## Requirements:");
+        assertThat(prompt).contains("For EACH entity, provide:");
+    }
+
+    @Test
+    public void shouldHandleNullSchemaGracefully() throws Exception {
+        Method method = RecommendationEngine.class.getDeclaredMethod("buildBatchRecommendationPrompt", 
+                AnalysisResult.class, DatabaseSchema.class, List.class, Map.class);
+        method.setAccessible(true);
+        
+        AnalysisResult analysis = createTestAnalysisWithMultipleCandidates();
+        
+        String prompt = (String) method.invoke(engine, analysis, null, null, null);
+        
+        // Should indicate schema not available
+        assertThat(prompt).contains("Schema information not available");
+        assertThat(prompt).contains("Production metrics not available");
+        // But should still have other sections
+        assertThat(prompt).contains("## Database Overview:");
         assertThat(prompt).contains("## Requirements:");
     }
 
@@ -257,5 +365,132 @@ public class RecommendationEngineTest {
         analysis.getUsageProfiles().put("Customer", profile);
         
         return analysis;
+    }
+    
+    private AnalysisResult createTestAnalysisWithMultipleCandidates() {
+        AnalysisResult analysis = new AnalysisResult();
+        
+        // Create Customer entity with navigation properties
+        EntityModel customerEntity = new EntityModel("Customer", "Customer.cs");
+        customerEntity.addNavigationProperty(new NavigationProperty(
+                "Orders", "Order", NavigationType.ONE_TO_MANY));
+        customerEntity.addNavigationProperty(new NavigationProperty(
+                "Profile", "CustomerProfile", NavigationType.ONE_TO_ONE));
+        
+        EntityUsageProfile customerProfile = new EntityUsageProfile(customerEntity);
+        customerProfile.incrementEagerLoadingCount(16);
+        customerProfile.getAlwaysLoadedWithEntities().add("CustomerProfile");
+        customerProfile.addRelatedEntity("Order", RelationshipType.ONE_TO_MANY);
+        customerProfile.addRelatedEntity("CustomerProfile", RelationshipType.ONE_TO_ONE);
+        
+        // Create Order entity
+        EntityModel orderEntity = new EntityModel("Order", "Order.cs");
+        orderEntity.addNavigationProperty(new NavigationProperty(
+                "Customer", "Customer", NavigationType.MANY_TO_ONE));
+        
+        EntityUsageProfile orderProfile = new EntityUsageProfile(orderEntity);
+        orderProfile.incrementEagerLoadingCount(14);
+        orderProfile.addRelatedEntity("Customer", RelationshipType.MANY_TO_ONE);
+        
+        analysis.getUsageProfiles().put("Customer", customerProfile);
+        analysis.getUsageProfiles().put("Order", orderProfile);
+        
+        // Create denormalization candidates
+        List<DenormalizationCandidate> candidates = Arrays.asList(
+            DenormalizationCandidate.builder()
+                .primaryEntity("Customer")
+                .relatedEntities(Arrays.asList("CustomerProfile"))
+                .complexity(MigrationComplexity.LOW)
+                .reason("Read-heavy access pattern; Always loaded together")
+                .recommendedTarget(NoSQLTarget.DYNAMODB)
+                .score(41)
+                .build(),
+            DenormalizationCandidate.builder()
+                .primaryEntity("Order")
+                .relatedEntities(new ArrayList<>())
+                .complexity(MigrationComplexity.LOW)
+                .reason("Read-heavy access pattern")
+                .recommendedTarget(NoSQLTarget.DYNAMODB)
+                .score(39)
+                .build()
+        );
+        
+        analysis.setDenormalizationCandidates(candidates);
+        analysis.setQueryPatterns(testQueryPatterns);
+        
+        return analysis;
+    }
+    
+    @Test
+    public void shouldSerializeProductionMetrics() throws Exception {
+        Method method = RecommendationEngine.class.getDeclaredMethod("serializeProductionMetrics", 
+                DenormalizationCandidate.class, Map.class);
+        method.setAccessible(true);
+        
+        DenormalizationCandidate candidate = createTestCandidate();
+        Map<String, Object> productionMetrics = createTestProductionMetrics();
+        
+        String result = (String) method.invoke(engine, candidate, productionMetrics);
+        
+        assertThat(result).contains("**Total Query Executions:** 1,042");
+        assertThat(result).contains("**Operation Breakdown:**");
+        assertThat(result).contains("UPDATE: 21 executions");
+        assertThat(result).contains("SELECT: 1,021 executions");
+        assertThat(result).contains("**Read/Write Ratio:** 48.6:1 (Read-heavy workload)");
+        assertThat(result).contains("**Table Co-Access Patterns:**");
+        assertThat(result).contains("Customer + CustomerProfile");
+        assertThat(result).contains("98.0% of all queries");
+    }
+    
+    @Test
+    public void shouldSerializeCrossEntityPatterns() throws Exception {
+        Method method = RecommendationEngine.class.getDeclaredMethod("serializeCrossEntityPatterns", 
+                List.class, Map.class);
+        method.setAccessible(true);
+        
+        List<DenormalizationCandidate> candidates = Arrays.asList(createTestCandidate());
+        Map<String, Object> productionMetrics = createTestProductionMetrics();
+        
+        String result = (String) method.invoke(engine, candidates, productionMetrics);
+        
+        assertThat(result).contains("Customer + CustomerProfile");
+        assertThat(result).contains("1,021 queries");
+        assertThat(result).contains("98.0% of all queries");
+    }
+    
+    private Map<String, Object> createTestProductionMetrics() {
+        Map<String, Object> metrics = new HashMap<>();
+        Map<String, Object> qualifiedMetrics = new HashMap<>();
+        
+        qualifiedMetrics.put("totalExecutions", 1042L);
+        
+        Map<String, Object> operations = new HashMap<>();
+        operations.put("UPDATE", 21L);
+        operations.put("SELECT", 1021L);
+        qualifiedMetrics.put("operationBreakdown", operations);
+        
+        qualifiedMetrics.put("readWriteRatio", 48.6);
+        qualifiedMetrics.put("isReadHeavy", true);
+        
+        Map<String, Object> tablePatterns = new HashMap<>();
+        tablePatterns.put("hasStrongCoAccessPatterns", true);
+        
+        List<Map<String, Object>> combinations = new ArrayList<>();
+        Map<String, Object> combo = new HashMap<>();
+        combo.put("tables", Arrays.asList("Customer", "CustomerProfile"));
+        combo.put("totalExecutions", 1021L);
+        combo.put("executionPercentage", 98.0);
+        combinations.add(combo);
+        
+        tablePatterns.put("frequentTableCombinations", combinations);
+        qualifiedMetrics.put("tableAccessPatterns", tablePatterns);
+        
+        Map<String, Object> performance = new HashMap<>();
+        performance.put("avgQueryDurationMs", 0.05);
+        performance.put("avgLogicalReads", 3.0);
+        qualifiedMetrics.put("performanceCharacteristics", performance);
+        
+        metrics.put("qualifiedMetrics", qualifiedMetrics);
+        return metrics;
     }
 }

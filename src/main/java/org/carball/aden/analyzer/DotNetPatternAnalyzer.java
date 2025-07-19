@@ -4,11 +4,13 @@ import lombok.extern.slf4j.Slf4j;
 import org.carball.aden.config.MigrationThresholds;
 import org.carball.aden.model.analysis.*;
 import org.carball.aden.model.entity.EntityModel;
+import org.carball.aden.model.entity.NavigationProperty;
 import org.carball.aden.model.entity.NavigationType;
 import org.carball.aden.model.query.QueryPattern;
 import org.carball.aden.model.query.QueryType;
 import org.carball.aden.model.schema.DatabaseSchema;
 import org.carball.aden.model.schema.Relationship;
+import org.carball.aden.model.schema.RelationshipType;
 import org.carball.aden.model.schema.Table;
 
 import java.util.*;
@@ -18,6 +20,7 @@ import java.util.stream.Collectors;
 public class DotNetPatternAnalyzer {
 
     private final MigrationThresholds thresholds;
+    private Map<String, EntityUsageProfile> profiles; // Instance variable for profile access
 
     public DotNetPatternAnalyzer(MigrationThresholds thresholds) {
         this.thresholds = thresholds;
@@ -72,6 +75,9 @@ public class DotNetPatternAnalyzer {
         for (EntityModel entity : entities) {
             profiles.put(entity.getClassName(), new EntityUsageProfile(entity));
         }
+        
+        // Store profiles as instance variable for access in createCandidate
+        this.profiles = profiles;
 
         // Populate usage data from query patterns
         for (QueryPattern pattern : queryPatterns) {
@@ -140,23 +146,56 @@ public class DotNetPatternAnalyzer {
 
     private void analyzeRelationshipPatterns(Map<String, EntityUsageProfile> profiles,
                                              DatabaseSchema schema) {
-        // Analyze database relationships to understand access patterns
+        // First, identify actual relationships from the database schema
         for (Relationship relationship : schema.getRelationships()) {
             EntityUsageProfile fromProfile = profiles.get(relationship.getFromTable());
             EntityUsageProfile toProfile = profiles.get(relationship.getToTable());
 
             if (fromProfile != null && toProfile != null) {
-                // Check if these entities are frequently accessed together
-                boolean frequentlyTogether = fromProfile.getAlwaysLoadedWithEntities()
-                        .contains(relationship.getToTable()) ||
-                        toProfile.getAlwaysLoadedWithEntities()
-                                .contains(relationship.getFromTable());
-
-                if (frequentlyTogether) {
-                    log.debug("Entities {} and {} are frequently accessed together",
-                            relationship.getFromTable(), relationship.getToTable());
+                // Track the database relationships in the profiles
+                fromProfile.addRelatedEntity(relationship.getToTable(), relationship.getType());
+                toProfile.addRelatedEntity(relationship.getFromTable(), relationship.getType());
+                
+                log.debug("Added relationship: {} <-> {} ({})", 
+                         relationship.getFromTable(), relationship.getToTable(), relationship.getType());
+            }
+        }
+        
+        // Then analyze Entity Framework navigation properties
+        for (EntityUsageProfile profile : profiles.values()) {
+            EntityModel entity = profile.getEntity();
+            
+            // Add entities referenced through navigation properties
+            for (NavigationProperty navProp : entity.getNavigationProperties()) {
+                String relatedEntity = navProp.getTargetEntity();
+                EntityUsageProfile relatedProfile = profiles.get(relatedEntity);
+                
+                if (relatedProfile != null) {
+                    profile.addRelatedEntity(relatedEntity, 
+                            convertNavigationType(navProp.getType()));
+                    
+                    log.debug("Added navigation property relationship: {} -> {} ({})",
+                            entity.getClassName(), relatedEntity, navProp.getType());
                 }
             }
+        }
+        
+        // Finally, check co-access patterns from Query Store (if available)
+        // This is handled in extractRelatedEntities based on query patterns
+    }
+    
+    private RelationshipType convertNavigationType(NavigationType navType) {
+        switch (navType) {
+            case ONE_TO_ONE:
+                return RelationshipType.ONE_TO_ONE;
+            case ONE_TO_MANY:
+                return RelationshipType.ONE_TO_MANY;
+            case MANY_TO_ONE:
+                return RelationshipType.MANY_TO_ONE;
+            case MANY_TO_MANY:
+                return RelationshipType.MANY_TO_MANY;
+            default:
+                return RelationshipType.ONE_TO_MANY; // Default
         }
     }
 
@@ -221,9 +260,39 @@ public class DotNetPatternAnalyzer {
 
     private DenormalizationCandidate createCandidate(EntityUsageProfile profile,
                                                      DatabaseSchema schema) {
+        // Collect all related entities from various sources
+        Set<String> allRelatedEntities = new HashSet<>();
+        
+        // 1. Entities always loaded together (from query patterns)
+        allRelatedEntities.addAll(profile.getAlwaysLoadedWithEntities());
+        
+        log.debug("Creating candidate for {}: alwaysLoaded={}, relatedEntities={}",
+                 profile.getEntityName(), profile.getAlwaysLoadedWithEntities(), 
+                 profile.getRelatedEntities());
+        
+        // 2. Entities with strong relationships (from database schema & EF navigation)
+        for (Map.Entry<String, RelationshipType> entry : profile.getRelatedEntities().entrySet()) {
+            String relatedEntity = entry.getKey();
+            RelationshipType relType = entry.getValue();
+            
+            // Include entities with strong relationships (1:1 or frequently accessed 1:N)
+            if (relType == RelationshipType.ONE_TO_ONE) {
+                allRelatedEntities.add(relatedEntity);
+            } else if (relType == RelationshipType.ONE_TO_MANY || 
+                      relType == RelationshipType.MANY_TO_ONE) {
+                // Check if this related entity is frequently accessed
+                EntityUsageProfile relatedProfile = profiles.get(relatedEntity);
+                if (relatedProfile != null && 
+                    (profile.getAlwaysLoadedWithEntities().contains(relatedEntity) ||
+                     relatedProfile.getAlwaysLoadedWithEntities().contains(profile.getEntityName()))) {
+                    allRelatedEntities.add(relatedEntity);
+                }
+            }
+        }
+        
         return DenormalizationCandidate.builder()
                 .primaryEntity(profile.getEntityName())
-                .relatedEntities(new ArrayList<>(profile.getAlwaysLoadedWithEntities()))
+                .relatedEntities(new ArrayList<>(allRelatedEntities))
                 .complexity(calculateComplexity(profile, schema))
                 .reason(generateReason(profile))
                 .score(calculateScore(profile))

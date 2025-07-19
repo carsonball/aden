@@ -27,6 +27,7 @@ public class DotNetAnalyzer {
     private final LinqAnalyzer linqAnalyzer;
     private final DotNetPatternAnalyzer patternAnalyzer;
     private final RecommendationEngine recommendationEngine;
+    private DatabaseSchema currentSchema; // Store schema for recommendation generation
 
     public DotNetAnalyzer(DotNetAnalyzerConfig config) {
         this(config, new String[0]);
@@ -67,6 +68,7 @@ public class DotNetAnalyzer {
             System.out.println("  - Parsing database schema...");
         }
         DatabaseSchema schema = schemaParser.parseDDL(config.getSchemaFile());
+        this.currentSchema = schema; // Store for later use in recommendations
         log.info("Parsed {} tables and {} relationships from schema",
                 schema.getTables().size(), schema.getRelationships().size());
 
@@ -90,6 +92,7 @@ public class DotNetAnalyzer {
         }
         Map<String, String> dbSetMapping = efParser.getDbSetPropertyToEntityMap();
         AnalysisResult result = patternAnalyzer.analyzePatterns(entities, queryPatterns, schema, dbSetMapping);
+        result.setQueryPatterns(queryPatterns); // Store query patterns in result
 
         // Step 5: Apply filters
         result.setDenormalizationCandidates(
@@ -117,8 +120,12 @@ public class DotNetAnalyzer {
             log.info("Including production metrics from Query Store in recommendation generation");
         }
 
+        // Use stored schema if schema parameter is null
+        DatabaseSchema schemaToUse = (schema != null) ? schema : this.currentSchema;
+        List<QueryPattern> patternsToUse = (queryPatterns != null) ? queryPatterns : result.getQueryPatterns();
+        
         List<NoSQLRecommendation> recommendations = recommendationEngine.generateRecommendations(
-            result, schema, queryPatterns, productionMetrics);
+            result, schemaToUse, patternsToUse, productionMetrics);
 
         // Apply target service filter
         if (!config.getTargetServices().isEmpty() &&
