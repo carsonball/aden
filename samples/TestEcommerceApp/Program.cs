@@ -1,6 +1,6 @@
 using System;
 using System.Configuration;
-using System.Data.Entity;
+using System.Linq;
 using TestEcommerceApp.Models;
 using TestEcommerceApp.Services;
 
@@ -15,76 +15,50 @@ namespace TestEcommerceApp
 
             try
             {
-                // Force close any existing connections before dropping database
-                using (var connection = new System.Data.SqlClient.SqlConnection())
-                {
-                    var connectionString = ConfigurationManager.ConnectionStrings["DefaultConnection"].ConnectionString;
-                    connection.ConnectionString = connectionString.Replace("TestEcommerceApp", "master");
-                    connection.Open();
-                    
-                    using (var command = connection.CreateCommand())
-                    {
-                        command.CommandText = @"
-                            IF DB_ID('TestEcommerceApp') IS NOT NULL
-                            BEGIN
-                                ALTER DATABASE TestEcommerceApp SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
-                            END";
-                        command.ExecuteNonQuery();
-                        
-                        command.CommandText = @"
-                            IF DB_ID('TestEcommerceApp') IS NOT NULL
-                            BEGIN
-                                DROP DATABASE TestEcommerceApp;
-                            END";
-                        command.ExecuteNonQuery();
-                    }
-                }
-
-                // Initialize database - drop and recreate for fresh data each run
-                Database.SetInitializer(new DropCreateDatabaseAlways<AppDbContext>());
-
+                // Connect to existing Docker database (no setup needed)
                 using (var context = new AppDbContext())
                 {
-                    // Ensure database is created
-                    context.Database.Initialize(force: false);
-                    Console.WriteLine("Database initialized successfully.");
-
-                    // Enable Query Store for usage metrics collection
-                    Console.WriteLine("Enabling Query Store...");
-                    using (var connection = new System.Data.SqlClient.SqlConnection())
+                    Console.WriteLine("Connecting to Docker SQL Server...");
+                    Console.WriteLine($"Connection string: {context.Database.Connection.ConnectionString}");
+                    
+                    // Test basic connection
+                    try
                     {
-                        var connectionString = ConfigurationManager.ConnectionStrings["DefaultConnection"].ConnectionString;
-                        connection.ConnectionString = connectionString;
-                        connection.Open();
-                        
-                        using (var command = connection.CreateCommand())
-                        {
-                            command.CommandText = @"
-                                ALTER DATABASE TestEcommerceApp SET QUERY_STORE = ON (
-                                    OPERATION_MODE = READ_WRITE,
-                                    CLEANUP_POLICY = (STALE_QUERY_THRESHOLD_DAYS = 30),
-                                    DATA_FLUSH_INTERVAL_SECONDS = 60,
-                                    INTERVAL_LENGTH_MINUTES = 1,
-                                    MAX_STORAGE_SIZE_MB = 100,
-                                    QUERY_CAPTURE_MODE = ALL,
-                                    SIZE_BASED_CLEANUP_MODE = AUTO,
-                                    QUERY_CAPTURE_POLICY = (
-                                        EXECUTION_COUNT = 1,
-                                        TOTAL_COMPILE_CPU_TIME_MS = 1,
-                                        TOTAL_EXECUTION_CPU_TIME_MS = 1
-                                    )
-                                )";
-                            command.ExecuteNonQuery();
-                        }
+                        context.Database.Connection.Open();
+                        Console.WriteLine("✓ Database connection successful");
+                        context.Database.Connection.Close();
                     }
-                    Console.WriteLine("Query Store enabled successfully.");
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"✗ Database connection failed: {ex.Message}");
+                        return;
+                    }
+                    
+                    // Check if database exists
+                    bool dbExists = context.Database.Exists();
+                    Console.WriteLine($"Database exists: {dbExists}");
+                    
+                    if (!dbExists)
+                    {
+                        Console.WriteLine("ERROR: TestEcommerceApp database not found. Check Docker container.");
+                        Console.WriteLine("\nPress any key to exit...");
+                        Console.ReadLine();
+                        return;
+                    }
+                    
+                    // Verify connection and data exists
+                    var customerCount = context.Customer.Count();
+                    Console.WriteLine($"Found {customerCount} customers in database.");
+                    
+                    if (customerCount == 0)
+                    {
+                        Console.WriteLine("WARNING: No customers found. Ensure Docker container is running with init scripts.");
+                        Console.WriteLine("\nPress any key to exit...");
+                        Console.ReadLine();
+                        return;
+                    }
 
-                    // Seed test data
-                    var seeder = new TestDataSeeder(context);
-                    seeder.SeedData();
-                    Console.WriteLine("Test data seeded successfully.");
-
-                    // Run usage simulation
+                    // Run usage simulation only
                     var simulator = new UsageSimulator(context);
                     simulator.RunSimulation();
                     Console.WriteLine("Usage simulation completed.");

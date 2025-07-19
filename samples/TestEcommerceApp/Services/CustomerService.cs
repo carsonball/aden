@@ -20,7 +20,7 @@ namespace TestEcommerceApp.Services
         // Classic eager loading pattern
         public Customer GetCustomerWithOrders(int customerId)
         {
-            return _context.Customers
+            return _context.Customer
                 .Include(c => c.Orders)
                 .Include(c => c.Profile)
                 .FirstOrDefault(c => c.Id == customerId);
@@ -29,7 +29,7 @@ namespace TestEcommerceApp.Services
         // Complex query pattern
         public List<Order> GetCustomerOrdersWithItems(int customerId)
         {
-            return _context.Orders
+            return _context.Order
                 .Include(o => o.OrderItems)
                 .Include(o => o.OrderItems.Select(oi => oi.Product))
                 .Where(o => o.CustomerId == customerId)
@@ -39,14 +39,14 @@ namespace TestEcommerceApp.Services
         // More eager loading patterns to increase frequency
         public Customer GetCustomerWithProfile(int customerId)
         {
-            return _context.Customers
+            return _context.Customer
                 .Include(c => c.Profile)
                 .FirstOrDefault(c => c.Id == customerId);
         }
 
         public Customer GetCustomerWithOrderHistory(int customerId)
         {
-            return _context.Customers
+            return _context.Customer
                 .Include(c => c.Orders)
                 .Include(c => c.Profile)
                 .FirstOrDefault(c => c.Id == customerId);
@@ -54,14 +54,22 @@ namespace TestEcommerceApp.Services
 
         public List<Customer> GetCustomersWithProfiles()
         {
-            return _context.Customers
+            return _context.Customer
                 .Include(c => c.Profile)
+                .ToList();
+        }
+
+        public List<Customer> GetCustomersWithProfiles(int batchSize)
+        {
+            return _context.Customer
+                .Include(c => c.Profile)
+                .Take(batchSize)
                 .ToList();
         }
 
         public List<Customer> GetActiveCustomersWithOrders()
         {
-            return _context.Customers
+            return _context.Customer
                 .Include(c => c.Orders)
                 .Include(c => c.Profile)
                 .Where(c => c.Orders.Any())
@@ -70,11 +78,28 @@ namespace TestEcommerceApp.Services
 
         public Customer GetCustomerFullData(int customerId)
         {
-            return _context.Customers
+            return _context.Customer
                 .Include(c => c.Profile)
                 .Include(c => c.Orders)
                 .Include(c => c.Orders.Select(o => o.OrderItems))
                 .FirstOrDefault(c => c.Id == customerId);
+        }
+
+        public void UpdateCustomerProfile(int customerId, string address = null, string phoneNumber = null)
+        {
+            var customer = _context.Customer
+                .Include(c => c.Profile)
+                .FirstOrDefault(c => c.Id == customerId);
+
+            if (customer?.Profile != null)
+            {
+                if (address != null)
+                    customer.Profile.Address = address;
+                if (phoneNumber != null)
+                    customer.Profile.PhoneNumber = phoneNumber;
+
+                _context.SaveChanges();
+            }
         }
     }
 }

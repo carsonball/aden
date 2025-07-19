@@ -17,7 +17,7 @@ namespace TestEcommerceApp.Services
         // Complex eager loading pattern
         public Order GetOrderWithDetails(int orderId)
         {
-            return _context.Orders
+            return _context.Order
                 .Include(o => o.Customer)
                 .Include(o => o.Customer.Profile)
                 .Include(o => o.OrderItems.Select(oi => oi.Product))
@@ -27,7 +27,7 @@ namespace TestEcommerceApp.Services
         // Multiple includes pattern
         public List<Order> GetRecentOrdersForCustomer(int customerId)
         {
-            return _context.Orders
+            return _context.Order
                 .Include(o => o.OrderItems)
                 .Where(o => o.CustomerId == customerId)
                 .OrderByDescending(o => o.OrderDate)
@@ -38,7 +38,7 @@ namespace TestEcommerceApp.Services
         // Additional query patterns for higher frequency
         public List<Order> GetOrdersWithCustomerProfiles()
         {
-            return _context.Orders
+            return _context.Order
                 .Include(o => o.Customer)
                 .Include(o => o.Customer.Profile)
                 .ToList();
@@ -46,7 +46,7 @@ namespace TestEcommerceApp.Services
 
         public Order GetOrderWithAllDetails(int orderId)
         {
-            return _context.Orders
+            return _context.Order
                 .Include(o => o.Customer)
                 .Include(o => o.Customer.Profile)
                 .Include(o => o.OrderItems)
@@ -56,7 +56,7 @@ namespace TestEcommerceApp.Services
 
         public List<Order> GetOrdersWithItems()
         {
-            return _context.Orders
+            return _context.Order
                 .Include(o => o.OrderItems)
                 .Include(o => o.OrderItems.Select(oi => oi.Product))
                 .ToList();
@@ -64,7 +64,7 @@ namespace TestEcommerceApp.Services
 
         public List<Order> GetOrdersWithCustomers()
         {
-            return _context.Orders
+            return _context.Order
                 .Include(o => o.Customer)
                 .Include(o => o.Customer.Profile)
                 .ToList();
