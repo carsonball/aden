@@ -1,7 +1,7 @@
 package org.carball.aden.analyzer;
 
 import lombok.extern.slf4j.Slf4j;
-import org.carball.aden.ai.RecommendationEngine;
+import org.carball.aden.ai.JsonRecommendationEngine;
 import org.carball.aden.config.*;
 import org.carball.aden.model.analysis.AnalysisResult;
 import org.carball.aden.model.analysis.DenormalizationCandidate;
@@ -26,7 +26,7 @@ public class DotNetAnalyzer {
     private final EFModelParser efParser;
     private final LinqAnalyzer linqAnalyzer;
     private final DotNetPatternAnalyzer patternAnalyzer;
-    private final RecommendationEngine recommendationEngine;
+    private final JsonRecommendationEngine jsonRecommendationEngine;
     private DatabaseSchema currentSchema; // Store schema for recommendation generation
 
     public DotNetAnalyzer(DotNetAnalyzerConfig config) {
@@ -42,7 +42,7 @@ public class DotNetAnalyzer {
         // Load migration thresholds
         MigrationThresholds thresholds = loadMigrationThresholds(config, args);
         this.patternAnalyzer = new DotNetPatternAnalyzer(thresholds);
-        this.recommendationEngine = new RecommendationEngine(config.getOpenAiApiKey());
+        this.jsonRecommendationEngine = new JsonRecommendationEngine(config.getOpenAiApiKey());
 
         log.info("Initialized DotNetAnalyzer with config: {}", config);
     }
@@ -124,7 +124,7 @@ public class DotNetAnalyzer {
         DatabaseSchema schemaToUse = (schema != null) ? schema : this.currentSchema;
         List<QueryPattern> patternsToUse = (queryPatterns != null) ? queryPatterns : result.getQueryPatterns();
         
-        List<NoSQLRecommendation> recommendations = recommendationEngine.generateRecommendations(
+        List<NoSQLRecommendation> recommendations = jsonRecommendationEngine.generateRecommendations(
             result, schemaToUse, patternsToUse, productionMetrics);
 
         // Apply target service filter
