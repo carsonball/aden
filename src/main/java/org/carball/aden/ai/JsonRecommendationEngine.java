@@ -84,7 +84,7 @@ public class JsonRecommendationEngine {
             // Validate we have recommendations for all candidates
             validateCompleteness(response, analysis.getDenormalizationCandidates());
             
-            recommendations = convertToNoSQLRecommendations(response, analysis.getDenormalizationCandidates());
+            recommendations = convertToNoSQLRecommendations(response);
             
             log.info("Successfully parsed {} recommendations from JSON response", recommendations.size());
 
@@ -453,39 +453,25 @@ public class JsonRecommendationEngine {
     }
     
     private String getPatternDescription(String patternType) {
-        switch (patternType) {
-            case "SINGLE_ENTITY":
-                return "Single entity lookups (by ID or unique key)";
-            case "COLLECTION":
-                return "Collection queries (multiple entities)";
-            case "EAGER_LOADING":
-                return "Eager loading with related entities";
-            case "COMPLEX_EAGER_LOADING":
-                return "Complex eager loading (multiple nested relationships)";
-            case "WHERE_CLAUSE":
-                return "Filtered queries with WHERE conditions";
-            case "ORDER_BY":
-                return "Sorted queries with ORDER BY";
-            case "AGGREGATION":
-                return "Aggregation queries (COUNT, SUM, AVG, etc.)";
-            case "PAGINATION":
-                return "Paginated queries (Skip/Take)";
-            case "JOIN":
-                return "Queries with explicit JOINs";
-            case "COMPLEX_WHERE":
-                return "Complex filtered queries (multiple conditions)";
-            default:
-                return patternType + " queries";
-        }
+        return switch (patternType) {
+            case "SINGLE_ENTITY" -> "Single entity lookups (by ID or unique key)";
+            case "COLLECTION" -> "Collection queries (multiple entities)";
+            case "EAGER_LOADING" -> "Eager loading with related entities";
+            case "COMPLEX_EAGER_LOADING" -> "Complex eager loading (multiple nested relationships)";
+            case "WHERE_CLAUSE" -> "Filtered queries with WHERE conditions";
+            case "ORDER_BY" -> "Sorted queries with ORDER BY";
+            case "AGGREGATION" -> "Aggregation queries (COUNT, SUM, AVG, etc.)";
+            case "PAGINATION" -> "Paginated queries (Skip/Take)";
+            case "JOIN" -> "Queries with explicit JOINs";
+            case "COMPLEX_WHERE" -> "Complex filtered queries (multiple conditions)";
+            default -> patternType + " queries";
+        };
     }
 
     private List<NoSQLRecommendation> convertToNoSQLRecommendations(
-            RecommendationResponse response, 
-            List<DenormalizationCandidate> candidates) {
+            RecommendationResponse response) {
         
         List<NoSQLRecommendation> recommendations = new ArrayList<>();
-        Map<String, DenormalizationCandidate> candidateMap = candidates.stream()
-                .collect(Collectors.toMap(DenormalizationCandidate::getPrimaryEntity, c -> c));
         
         for (RecommendationResponse.EntityRecommendation entityRec : response.getRecommendations()) {
             NoSQLRecommendation recommendation = new NoSQLRecommendation();
@@ -538,17 +524,12 @@ public class JsonRecommendationEngine {
 
     private NoSQLTarget parseTargetService(String service) {
         if (service == null) return NoSQLTarget.DYNAMODB;
-        
-        switch (service.toUpperCase()) {
-            case "DYNAMODB":
-                return NoSQLTarget.DYNAMODB;
-            case "DOCUMENTDB":
-                return NoSQLTarget.DOCUMENTDB;
-            case "NEPTUNE":
-                return NoSQLTarget.NEPTUNE;
-            default:
-                return NoSQLTarget.DYNAMODB;
-        }
+
+        return switch (service.toUpperCase()) {
+            case "DOCUMENTDB" -> NoSQLTarget.DOCUMENTDB;
+            case "NEPTUNE" -> NoSQLTarget.NEPTUNE;
+            default -> NoSQLTarget.DYNAMODB;
+        };
     }
 
     private KeyStrategy convertKeyDefinition(RecommendationResponse.KeyDefinition keyDef) {
