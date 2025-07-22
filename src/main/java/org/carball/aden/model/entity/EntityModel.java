@@ -10,6 +10,7 @@ import java.util.List;
 public class EntityModel {
     private final String className;
     private final String fileName;
+    private String tableName; // Mapped table name from [Table] or ToTable()
     private List<NavigationProperty> navigationProperties = new ArrayList<>();
     private List<DataAnnotation> annotations = new ArrayList<>();
     private EntityType type = EntityType.AGGREGATE_ROOT;
@@ -38,5 +39,10 @@ public class EntityModel {
         // Simple check - in real implementation would need graph traversal
         return navigationProperties.stream()
                 .anyMatch(p -> p.getTargetEntity().equals(className));
+    }
+    
+    public String getEffectiveTableName() {
+        // Return explicit table name if set, otherwise use class name
+        return tableName != null ? tableName : className;
     }
 }

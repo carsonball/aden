@@ -47,6 +47,13 @@ public class MigrationThresholds {
     @Builder.Default
     private int complexQueryRequirement = 5;
     
+    // Production metrics thresholds
+    @Builder.Default
+    private int productionCoAccessThreshold = 500;
+    
+    @Builder.Default
+    private long highProductionExecutionThreshold = 1000;
+    
     // Profile information
     @Builder.Default
     private String profileName = "default";

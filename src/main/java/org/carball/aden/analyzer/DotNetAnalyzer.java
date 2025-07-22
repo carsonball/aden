@@ -61,6 +61,10 @@ public class DotNetAnalyzer {
     }
 
     public AnalysisResult analyze() throws IOException {
+        return analyze(null);
+    }
+    
+    public AnalysisResult analyze(Map<String, Object> productionMetrics) throws IOException {
         log.info("Starting analysis of .NET Framework application");
 
         // Step 1: Parse database schema
@@ -91,7 +95,7 @@ public class DotNetAnalyzer {
             System.out.println("  - Correlating patterns and scoring complexity...");
         }
         Map<String, String> dbSetMapping = efParser.getDbSetPropertyToEntityMap();
-        AnalysisResult result = patternAnalyzer.analyzePatterns(entities, queryPatterns, schema, dbSetMapping);
+        AnalysisResult result = patternAnalyzer.analyzePatterns(entities, queryPatterns, schema, dbSetMapping, productionMetrics);
         result.setQueryPatterns(queryPatterns); // Store query patterns in result
 
         // Step 5: Apply filters

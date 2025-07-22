@@ -113,6 +113,8 @@ public enum MigrationProfile {
         double baseReadWriteRatio = 10.0;
         int baseComplexPenalty = 10;
         int baseComplexQueryReq = 5;
+        int baseCoAccessThreshold = 500;
+        long baseHighProductionExecution = 1000;
         
         return MigrationThresholds.builder()
                 .profileName(name)
@@ -123,6 +125,8 @@ public enum MigrationProfile {
                 .complexRelationshipPenalty((int) (baseComplexPenalty * complexityMultiplier))
                 .complexityPenaltyMultiplier(complexityMultiplier)
                 .complexQueryRequirement((int) (baseComplexQueryReq * frequencyMultiplier))
+                .productionCoAccessThreshold((int) (baseCoAccessThreshold * frequencyMultiplier))
+                .highProductionExecutionThreshold((long) (baseHighProductionExecution * frequencyMultiplier))
                 .excellentCandidateThreshold(excellentThreshold)
                 .strongCandidateThreshold(strongThreshold)
                 .goodCandidateThreshold(goodThreshold)

@@ -65,18 +65,18 @@ public class DotNetAnalyzerCLI {
 
             DotNetAnalyzer analyzer = new DotNetAnalyzer(config, args);
 
-            // Step 1: Analyze static code
-            System.out.print("📊 Analyzing .NET Framework application... ");
-            AnalysisResult result = analyzer.analyze();
-            System.out.println("✓");
-            
-            // Step 2: Analyze Query Store if connection string provided
+            // Step 1: Analyze Query Store first if connection string provided
             Map<String, Object> productionMetrics = null;
             if (connectionString != null) {
                 System.out.print("📈 Analyzing Query Store production metrics... ");
                 productionMetrics = analyzeQueryStore(connectionString, config);
                 System.out.println("✓");
             }
+            
+            // Step 2: Analyze static code with production metrics
+            System.out.print("📊 Analyzing .NET Framework application... ");
+            AnalysisResult result = analyzer.analyze(productionMetrics);
+            System.out.println("✓");
 
             // Step 3: Generate recommendations with optional production metrics
             System.out.print("🤖 Generating AWS migration recommendations... ");

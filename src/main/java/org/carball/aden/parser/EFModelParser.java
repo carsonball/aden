@@ -32,6 +32,11 @@ public class EFModelParser {
 
     private static final Pattern DBSET_PATTERN =
             Pattern.compile("public\\s+DbSet<(\\w+)>\\s+(\\w+)\\s*\\{\\s*get;\\s*set;\\s*\\}");
+            
+    private static final Pattern TOTABLE_PATTERN = 
+            Pattern.compile("modelBuilder\\.Entity<(\\w+)>\\(\\)\\s*\\.ToTable\\(\"(\\w+)\"\\)");
+            
+    private Map<String, String> entityToTableMappings = new HashMap<>();
 
     private static final List<String> PRIMITIVE_TYPES = Arrays.asList(
             "string", "int", "long", "bool", "boolean", "DateTime", "DateTimeOffset",
@@ -68,6 +73,16 @@ public class EFModelParser {
 
         // Post-process to determine entity types
         determineEntityTypes(entities);
+        
+        // Apply ToTable mappings to entities that were parsed before DbContext
+        for (EntityModel entity : entities) {
+            if (entity.getTableName() == null) {
+                String mappedTableName = entityToTableMappings.get(entity.getClassName());
+                if (mappedTableName != null) {
+                    entity.setTableName(mappedTableName);
+                }
+            }
+        }
 
         return entities;
     }
@@ -107,6 +122,9 @@ public class EFModelParser {
 
         // Extract data annotations
         extractDataAnnotations(content, entity);
+        
+        // Set table name from [Table] annotation if present
+        setTableNameFromAnnotations(entity);
 
         // Check inheritance
         if (inheritance != null && inheritance.contains("DbContext")) {
@@ -239,6 +257,7 @@ public class EFModelParser {
     }
 
     private void parseDbContextMappings(String content, String fileName) {
+        // Parse DbSet properties
         Matcher matcher = DBSET_PATTERN.matcher(content);
         while (matcher.find()) {
             String entityType = matcher.group(1);
@@ -246,9 +265,52 @@ public class EFModelParser {
             dbSetPropertyToEntityMap.put(propertyName, entityType);
             log.debug("Found DbSet mapping: {} -> {} in {}", propertyName, entityType, fileName);
         }
+        
+        // Parse ToTable mappings from OnModelCreating
+        Matcher toTableMatcher = TOTABLE_PATTERN.matcher(content);
+        while (toTableMatcher.find()) {
+            String entityType = toTableMatcher.group(1);
+            String tableName = toTableMatcher.group(2);
+            entityToTableMappings.put(entityType, tableName);
+            log.debug("Found ToTable mapping: {} -> {} in {}", entityType, tableName, fileName);
+        }
     }
 
     public Map<String, String> getDbSetPropertyToEntityMap() {
         return new HashMap<>(dbSetPropertyToEntityMap);
+    }
+    
+    public Map<String, String> getEntityToTableMappings() {
+        return new HashMap<>(entityToTableMappings);
+    }
+    
+    private void setTableNameFromAnnotations(EntityModel entity) {
+        // First check if we have a ToTable mapping from OnModelCreating
+        String mappedTableName = entityToTableMappings.get(entity.getClassName());
+        if (mappedTableName != null) {
+            entity.setTableName(mappedTableName);
+            return;
+        }
+        
+        // Otherwise check for [Table] annotation
+        for (DataAnnotation annotation : entity.getAnnotations()) {
+            if ("Table".equals(annotation.getName()) && !annotation.getValue().isEmpty()) {
+                // Extract just the table name from the annotation value
+                String value = annotation.getValue();
+                String tableName;
+                
+                // Handle cases like: "TableName" or "TableName", Schema = "schema"
+                if (value.contains(",")) {
+                    // Extract just the table name part before the comma
+                    tableName = value.substring(0, value.indexOf(",")).replace("\"", "").trim();
+                } else {
+                    // Simple case - just remove quotes
+                    tableName = value.replace("\"", "").trim();
+                }
+                
+                entity.setTableName(tableName);
+                break;
+            }
+        }
     }
 }

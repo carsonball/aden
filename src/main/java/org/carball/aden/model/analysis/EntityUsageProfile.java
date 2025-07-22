@@ -20,6 +20,11 @@ public class EntityUsageProfile {
     private List<String> alwaysLoadedWithEntities = new ArrayList<>();
     private List<QueryPattern> queryPatterns = new ArrayList<>();
     private Map<String, RelationshipType> relatedEntities = new HashMap<>();
+    
+    // Production metrics from Query Store
+    private long productionExecutionCount = 0;
+    private double productionReadWriteRatio = 0.0;
+    private Map<String, Integer> coAccessedEntities = new HashMap<>();
 
     public EntityUsageProfile(EntityModel entity) {
         this.entity = entity;
@@ -55,5 +60,32 @@ public class EntityUsageProfile {
     
     public void addRelatedEntity(String entityName, RelationshipType type) {
         relatedEntities.put(entityName, type);
+    }
+    
+    public void addCoAccessedEntity(String entityName, int count) {
+        coAccessedEntities.merge(entityName, count, Integer::sum);
+    }
+    
+    public boolean hasHighProductionUsage(long threshold) {
+        return productionExecutionCount > threshold;
+    }
+    
+    public double getCombinedReadWriteRatio() {
+        // Combine source code analysis with production metrics
+        double sourceRatio = getReadToWriteRatio();
+        if (productionReadWriteRatio > 0) {
+            // Weight production data more heavily if available
+            return (sourceRatio * 0.3 + productionReadWriteRatio * 0.7);
+        }
+        return sourceRatio;
+    }
+    
+    public int getTotalAccessFrequency() {
+        // Combine eager loading count with production execution count
+        if (productionExecutionCount > 0) {
+            // Normalize production count to same scale as eager loading count
+            return eagerLoadingCount + (int)(productionExecutionCount / 100);
+        }
+        return eagerLoadingCount;
     }
 }
