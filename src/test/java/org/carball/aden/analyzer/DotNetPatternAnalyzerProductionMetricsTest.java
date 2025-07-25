@@ -200,7 +200,7 @@ public class DotNetPatternAnalyzerProductionMetricsTest {
         query2.setQueryId(2L);
         query2.setExecutionCount(2000L);
         query2.setOperationType("SELECT");
-        query2.setTablesAccessed(Arrays.asList("CustomerProfile"));
+        query2.setTablesAccessed(List.of("CustomerProfile"));
         queries.add(query2);
         
         analysis.setQueries(queries);
@@ -242,7 +242,7 @@ public class DotNetPatternAnalyzerProductionMetricsTest {
         query.setQueryId(1L);
         query.setExecutionCount(1500L);
         query.setOperationType("SELECT");
-        query.setTablesAccessed(Arrays.asList("Customers")); // Matches entityWithCustomTable.tableName
+        query.setTablesAccessed(List.of("Customers")); // Matches entityWithCustomTable.tableName
         queries.add(query);
         
         analysis.setQueries(queries);

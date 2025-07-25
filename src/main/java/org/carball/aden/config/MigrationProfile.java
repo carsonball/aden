@@ -154,7 +154,7 @@ public enum MigrationProfile {
     public static String getAvailableProfiles() {
         StringBuilder sb = new StringBuilder();
         for (MigrationProfile profile : values()) {
-            if (sb.length() > 0) sb.append(", ");
+            if (!sb.isEmpty()) sb.append(", ");
             sb.append(profile.getName());
         }
         return sb.toString();

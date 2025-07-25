@@ -117,7 +117,7 @@ public class DotNetPatternAnalyzer {
         
         // Integrate production metrics from Query Store if available
         if (productionMetrics != null) {
-            integrateProductionMetrics(profiles, productionMetrics, dbSetMapping);
+            integrateProductionMetrics(profiles, productionMetrics);
         }
 
         return profiles;
@@ -158,8 +158,7 @@ public class DotNetPatternAnalyzer {
     }
     
     private void integrateProductionMetrics(Map<String, EntityUsageProfile> profiles, 
-                                          QueryStoreAnalysis productionMetrics,
-                                          Map<String, String> dbSetMapping) {
+                                          QueryStoreAnalysis productionMetrics) {
         log.info("Integrating production metrics into entity usage profiles");
         
         // Extract qualified metrics
@@ -322,12 +321,11 @@ public class DotNetPatternAnalyzer {
         
         // Finally, integrate co-access patterns from Query Store (if available)
         if (productionMetrics != null) {
-            integrateProductionCoAccessPatterns(profiles, productionMetrics);
+            integrateProductionCoAccessPatterns(productionMetrics);
         }
     }
     
-    private void integrateProductionCoAccessPatterns(Map<String, EntityUsageProfile> profiles,
-                                                   QueryStoreAnalysis productionMetrics) {
+    private void integrateProductionCoAccessPatterns(QueryStoreAnalysis productionMetrics) {
         // The co-access patterns are already integrated in integrateProductionMetrics
         // but we can add additional relationship analysis here if needed
         
@@ -348,18 +346,13 @@ public class DotNetPatternAnalyzer {
     }
     
     private RelationshipType convertNavigationType(NavigationType navType) {
-        switch (navType) {
-            case ONE_TO_ONE:
-                return RelationshipType.ONE_TO_ONE;
-            case ONE_TO_MANY:
-                return RelationshipType.ONE_TO_MANY;
-            case MANY_TO_ONE:
-                return RelationshipType.MANY_TO_ONE;
-            case MANY_TO_MANY:
-                return RelationshipType.MANY_TO_MANY;
-            default:
-                return RelationshipType.ONE_TO_MANY; // Default
-        }
+        return switch (navType) {
+            case ONE_TO_ONE -> RelationshipType.ONE_TO_ONE;
+            case ONE_TO_MANY -> RelationshipType.ONE_TO_MANY;
+            case MANY_TO_ONE -> RelationshipType.MANY_TO_ONE;
+            case MANY_TO_MANY -> RelationshipType.MANY_TO_MANY;
+            // Default
+        };
     }
 
     private List<DenormalizationCandidate> identifyDenormalizationCandidates(
@@ -438,10 +431,9 @@ public class DotNetPatternAnalyzer {
     private DenormalizationCandidate createCandidate(EntityUsageProfile profile,
                                                      DatabaseSchema schema) {
         // Collect all related entities from various sources
-        Set<String> allRelatedEntities = new HashSet<>();
-        
+
         // 1. Entities always loaded together (from query patterns)
-        allRelatedEntities.addAll(profile.getAlwaysLoadedWithEntities());
+        Set<String> allRelatedEntities = new HashSet<>(profile.getAlwaysLoadedWithEntities());
         
         log.debug("Creating candidate for {}: alwaysLoaded={}, relatedEntities={}",
                  profile.getEntityName(), profile.getAlwaysLoadedWithEntities(), 

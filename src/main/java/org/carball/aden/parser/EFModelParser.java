@@ -216,12 +216,6 @@ public class EFModelParser {
     }
 
     private void determineEntityTypes(List<EntityModel> entities) {
-        // Build a map of entity names for quick lookup
-        List<String> entityNames = new ArrayList<>();
-        for (EntityModel entity : entities) {
-            entityNames.add(entity.getClassName());
-        }
-
         for (EntityModel entity : entities) {
             // Entities with no incoming references are likely aggregate roots
             boolean hasIncomingReferences = false;

@@ -15,7 +15,7 @@ public class QueryStoreAnalyzer {
     
     // Regex patterns for SQL analysis
     private static final Pattern TABLE_PATTERN = Pattern.compile(
-        "(?:FROM|JOIN|UPDATE|INTO)\\s+(?:\\[)?(?:dbo\\.)?(?:\\[)?([A-Za-z_][A-Za-z0-9_]*)(?:\\])?",
+            "(?:FROM|JOIN|UPDATE|INTO)\\s+\\[?(?:dbo\\.)?\\[?([A-Za-z_][A-Za-z0-9_]*)]?",
         Pattern.CASE_INSENSITIVE
     );
     
@@ -246,7 +246,7 @@ public class QueryStoreAnalyzer {
         }
         
         // For Entity Framework queries, also look for [dbo].[TableName] pattern
-        Pattern efPattern = Pattern.compile("\\[dbo\\]\\.\\[([A-Za-z_][A-Za-z0-9_]*)\\]", Pattern.CASE_INSENSITIVE);
+        Pattern efPattern = Pattern.compile("\\[dbo]\\.\\[([A-Za-z_][A-Za-z0-9_]*)]", Pattern.CASE_INSENSITIVE);
         Matcher efMatcher = efPattern.matcher(sql);
         while (efMatcher.find()) {
             String tableName = efMatcher.group(1);

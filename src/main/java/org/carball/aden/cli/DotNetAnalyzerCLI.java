@@ -13,14 +13,13 @@ import org.carball.aden.model.recommendation.NoSQLRecommendation;
 import org.carball.aden.output.MigrationReport;
 import org.carball.aden.parser.QueryStoreAnalyzer;
 import org.carball.aden.parser.QueryStoreConnector;
-import java.io.File;
+
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Collectors;
 
 @Slf4j

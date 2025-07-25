@@ -124,12 +124,12 @@ public class EFModelParserTableMappingTest {
                 {
                     public DbSet<Customer> Customers { get; set; }
                     public DbSet<Order> Orders { get; set; }
-                    
+            
                     protected override void OnModelCreating(ModelBuilder modelBuilder)
                     {
                         modelBuilder.Entity<Customer>().ToTable("CustomerRecords");
                         modelBuilder.Entity<Order>().ToTable("PurchaseOrders");
-                        
+            
                         base.OnModelCreating(modelBuilder);
                     }
                 }
@@ -192,12 +192,12 @@ public class EFModelParserTableMappingTest {
                 public class AppDbContext : DbContext
                 {
                     public DbSet<Customer> Customers { get; set; }
-                    
+            
                     protected override void OnModelCreating(ModelBuilder modelBuilder)
                     {
                         // This should override the [Table] annotation
                         modelBuilder.Entity<Customer>().ToTable("Clients");
-                        
+            
                         base.OnModelCreating(modelBuilder);
                     }
                 }
@@ -292,7 +292,7 @@ public class EFModelParserTableMappingTest {
                 {
                     public DbSet<Customer> Customers { get; set; }
                     public DbSet<Order> Orders { get; set; }
-                    
+            
                     protected override void OnModelCreating(ModelBuilder modelBuilder)
                     {
                         modelBuilder.Entity<Customer>().ToTable("tbl_Customers");
@@ -372,19 +372,19 @@ public class EFModelParserTableMappingTest {
                     public DbSet<Order> Orders { get; set; }
                     public DbSet<Product> Products { get; set; }
                     public DbSet<Category> Categories { get; set; }
-                    
+            
                     protected override void OnModelCreating(ModelBuilder modelBuilder)
                     {
                         // Single line
                         modelBuilder.Entity<Customer>().ToTable("Customers");
-                        
+            
                         // With spaces
                         modelBuilder.Entity<Order>()  .ToTable("Orders");
-                        
+            
                         // Multi-line
                         modelBuilder.Entity<Product>()
                             .ToTable("Products");
-                            
+            
                         // With additional configuration
                         modelBuilder.Entity<Category>()
                             .ToTable("Categories")
@@ -407,7 +407,6 @@ public class EFModelParserTableMappingTest {
         Files.writeString(dbContextFile, dbContext);
 
         List<EntityModel> entities = parser.parseEntities(tempDir);
-        Map<String, String> entityToTableMappings = parser.getEntityToTableMappings();
         
         // Since the table names match the entity names, let's check different table names
         // Let me update the OnModelCreating to use different table names
@@ -454,14 +453,14 @@ public class EFModelParserTableMappingTest {
                 {
                     [Key]
                     public int Id { get; set; }
-                    
+            
                     [Required]
                     [MaxLength(100)]
                     public string Username { get; set; }
-                    
+            
                     [Column("EmailAddress")]
                     public string Email { get; set; }
-                    
+            
                     public virtual ICollection<Order> Orders { get; set; }
                 }
             }
