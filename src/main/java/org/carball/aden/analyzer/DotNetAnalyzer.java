@@ -7,6 +7,7 @@ import org.carball.aden.model.analysis.AnalysisResult;
 import org.carball.aden.model.analysis.DenormalizationCandidate;
 import org.carball.aden.model.entity.EntityModel;
 import org.carball.aden.model.query.QueryPattern;
+import org.carball.aden.model.query.QueryStoreAnalysis;
 import org.carball.aden.model.recommendation.NoSQLRecommendation;
 import org.carball.aden.model.schema.DatabaseSchema;
 import org.carball.aden.parser.EFModelParser;
@@ -64,7 +65,7 @@ public class DotNetAnalyzer {
         return analyze(null);
     }
     
-    public AnalysisResult analyze(Map<String, Object> productionMetrics) throws IOException {
+    public AnalysisResult analyze(QueryStoreAnalysis productionMetrics) throws IOException {
         log.info("Starting analysis of .NET Framework application");
 
         // Step 1: Parse database schema
@@ -116,11 +117,11 @@ public class DotNetAnalyzer {
     public List<NoSQLRecommendation> generateRecommendations(AnalysisResult result, 
                                                             DatabaseSchema schema,
                                                             List<QueryPattern> queryPatterns,
-                                                            Map<String, Object> productionMetrics) {
+                                                            QueryStoreAnalysis productionMetrics) {
         log.info("Generating AI-powered recommendations for {} candidates",
                 result.getDenormalizationCandidates().size());
         
-        if (productionMetrics != null && !productionMetrics.isEmpty()) {
+        if (productionMetrics != null) {
             log.info("Including production metrics from Query Store in recommendation generation");
         }
 

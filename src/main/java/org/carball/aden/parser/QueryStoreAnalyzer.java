@@ -1,12 +1,7 @@
 package org.carball.aden.parser;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
-import org.carball.aden.model.query.QueryStoreQuery;
+import org.carball.aden.model.query.*;
 
-import java.io.File;
-import java.io.IOException;
-import java.sql.SQLException;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -17,8 +12,6 @@ import java.util.stream.Collectors;
  * Does NOT make recommendations - that's the AI's job.
  */
 public class QueryStoreAnalyzer {
-    
-    private final ObjectMapper objectMapper;
     
     // Regex patterns for SQL analysis
     private static final Pattern TABLE_PATTERN = Pattern.compile(
@@ -32,94 +25,91 @@ public class QueryStoreAnalyzer {
     );
     
     public QueryStoreAnalyzer() {
-        this.objectMapper = new ObjectMapper()
-            .enable(SerializationFeature.INDENT_OUTPUT);
     }
     
     /**
-     * Analyzes queries and exports qualified metrics as JSON.
+     * Analyzes queries and returns qualified metrics.
      */
-    public void analyzeAndExport(List<QueryStoreQuery> queries, String outputPath, String databaseName) throws IOException {
-        Map<String, Object> analysisData = new HashMap<>();
+    public QueryStoreAnalysis analyze(List<QueryStoreQuery> queries, String databaseName) {
+        QueryStoreAnalysis analysis = new QueryStoreAnalysis();
         
         // Metadata
-        analysisData.put("database", databaseName);
-        analysisData.put("analysisType", "QUERY_STORE_PRODUCTION_METRICS");
-        analysisData.put("timestamp", new Date());
-        analysisData.put("totalQueriesAnalyzed", queries.size());
+        analysis.setDatabase(databaseName);
+        analysis.setAnalysisType("QUERY_STORE_PRODUCTION_METRICS");
+        analysis.setTimestamp(new Date());
+        analysis.setTotalQueriesAnalyzed(queries.size());
         
         // Analyze queries
-        List<Map<String, Object>> analyzedQueries = queries.stream()
+        List<AnalyzedQuery> analyzedQueries = queries.stream()
             .map(this::analyzeQuery)
             .collect(Collectors.toList());
-        analysisData.put("queries", analyzedQueries);
+        analysis.setQueries(analyzedQueries);
         
         // Create qualified metrics for AI
-        Map<String, Object> qualifiedMetrics = createQualifiedMetrics(analyzedQueries);
-        analysisData.put("qualifiedMetrics", qualifiedMetrics);
-        
-        // Write to file
-        objectMapper.writeValue(new File(outputPath), analysisData);
-    }
-    
-    /**
-     * Analyzes individual query to extract AI-relevant qualifications.
-     */
-    private Map<String, Object> analyzeQuery(QueryStoreQuery query) {
-        Map<String, Object> analysis = new HashMap<>();
-        
-        // Basic metrics
-        analysis.put("queryId", query.getQueryId());
-        analysis.put("executionCount", query.getExecutionCount());
-        analysis.put("avgDurationMs", query.getAvgDurationMs());
-        analysis.put("avgCpuTimeMs", query.getAvgCpuTimeMs());
-        analysis.put("avgLogicalReads", query.getAvgLogicalReads());
-        
-        // Extract operation type
-        String operationType = extractOperationType(query.getSqlText());
-        analysis.put("operationType", operationType);
-        
-        // Extract tables accessed
-        List<String> tablesAccessed = extractTableNames(query.getSqlText());
-        analysis.put("tablesAccessed", tablesAccessed);
-        analysis.put("tableCount", tablesAccessed.size());
-        
-        // Determine access pattern
-        String accessPattern = determineAccessPattern(query.getSqlText());
-        analysis.put("accessPattern", accessPattern);
-        
-        // Check for joins
-        boolean hasJoins = query.getSqlText().toUpperCase().contains("JOIN");
-        analysis.put("hasJoins", hasJoins);
-        
-        // SQL preview
-        String sqlPreview = query.getSqlText().length() > 200 
-            ? query.getSqlText().substring(0, 200) + "..."
-            : query.getSqlText();
-        analysis.put("sqlPreview", sqlPreview.replaceAll("\\s+", " "));
+        QualifiedMetrics qualifiedMetrics = createQualifiedMetrics(analyzedQueries);
+        analysis.setQualifiedMetrics(qualifiedMetrics);
         
         return analysis;
     }
     
     /**
+     * Analyzes individual query to extract AI-relevant qualifications.
+     */
+    private AnalyzedQuery analyzeQuery(QueryStoreQuery query) {
+        AnalyzedQuery analyzed = new AnalyzedQuery();
+        
+        // Basic metrics
+        analyzed.setQueryId(Long.parseLong(query.getQueryId()));
+        analyzed.setExecutionCount(query.getExecutionCount());
+        analyzed.setAvgDurationMs(query.getAvgDurationMs());
+        analyzed.setAvgCpuTimeMs(query.getAvgCpuTimeMs());
+        analyzed.setAvgLogicalReads(query.getAvgLogicalReads());
+        
+        // Extract operation type
+        String operationType = extractOperationType(query.getSqlText());
+        analyzed.setOperationType(operationType);
+        
+        // Extract tables accessed
+        List<String> tablesAccessed = extractTableNames(query.getSqlText());
+        analyzed.setTablesAccessed(tablesAccessed);
+        analyzed.setTableCount(tablesAccessed.size());
+        
+        // Determine access pattern
+        String accessPattern = determineAccessPattern(query.getSqlText());
+        analyzed.setAccessPattern(accessPattern);
+        
+        // Check for joins
+        boolean hasJoins = query.getSqlText().toUpperCase().contains("JOIN");
+        analyzed.setHasJoins(hasJoins);
+        
+        // SQL preview
+        String sqlPreview = query.getSqlText().length() > 200 
+            ? query.getSqlText().substring(0, 200) + "..."
+            : query.getSqlText();
+        analyzed.setSqlPreview(sqlPreview.replaceAll("\\s+", " "));
+        
+        return analyzed;
+    }
+    
+    /**
      * Creates qualified metrics for AI decisioning.
      */
-    private Map<String, Object> createQualifiedMetrics(List<Map<String, Object>> analyzedQueries) {
-        Map<String, Object> metrics = new HashMap<>();
+    private QualifiedMetrics createQualifiedMetrics(List<AnalyzedQuery> analyzedQueries) {
+        QualifiedMetrics metrics = new QualifiedMetrics();
         
         // Total execution count
         long totalExecutions = analyzedQueries.stream()
-            .mapToLong(q -> (Long) q.get("executionCount"))
+            .mapToLong(AnalyzedQuery::getExecutionCount)
             .sum();
-        metrics.put("totalExecutions", totalExecutions);
+        metrics.setTotalExecutions(totalExecutions);
         
         // Operation breakdown
         Map<String, Long> operationCounts = analyzedQueries.stream()
             .collect(Collectors.groupingBy(
-                q -> (String) q.get("operationType"),
-                Collectors.summingLong(q -> (Long) q.get("executionCount"))
+                AnalyzedQuery::getOperationType,
+                Collectors.summingLong(AnalyzedQuery::getExecutionCount)
             ));
-        metrics.put("operationBreakdown", operationCounts);
+        metrics.setOperationBreakdown(operationCounts);
         
         // Read/Write ratio
         long readOps = operationCounts.getOrDefault("SELECT", 0L);
@@ -127,24 +117,24 @@ public class QueryStoreAnalyzer {
                        operationCounts.getOrDefault("UPDATE", 0L) + 
                        operationCounts.getOrDefault("DELETE", 0L);
         double readWriteRatio = writeOps == 0 ? readOps : (double) readOps / writeOps;
-        metrics.put("readWriteRatio", readWriteRatio);
-        metrics.put("isReadHeavy", readWriteRatio > 10);
+        metrics.setReadWriteRatio(readWriteRatio);
+        metrics.setReadHeavy(readWriteRatio > 10);
         
         // Table co-access patterns
-        Map<String, Object> tablePatterns = analyzeTablePatterns(analyzedQueries, totalExecutions);
-        metrics.put("tableAccessPatterns", tablePatterns);
+        TableAccessPatterns tablePatterns = analyzeTablePatterns(analyzedQueries, totalExecutions);
+        metrics.setTableAccessPatterns(tablePatterns);
         
         // Performance characteristics
-        Map<String, Object> performanceMetrics = analyzePerformance(analyzedQueries);
-        metrics.put("performanceCharacteristics", performanceMetrics);
+        PerformanceCharacteristics performanceMetrics = analyzePerformance(analyzedQueries);
+        metrics.setPerformanceCharacteristics(performanceMetrics);
         
         // Access pattern distribution
         Map<String, Long> accessPatterns = analyzedQueries.stream()
             .collect(Collectors.groupingBy(
-                q -> (String) q.get("accessPattern"),
+                AnalyzedQuery::getAccessPattern,
                 Collectors.counting()
             ));
-        metrics.put("accessPatternDistribution", accessPatterns);
+        metrics.setAccessPatternDistribution(accessPatterns);
         
         return metrics;
     }
@@ -152,40 +142,39 @@ public class QueryStoreAnalyzer {
     /**
      * Analyzes table access patterns for co-location insights.
      */
-    private Map<String, Object> analyzeTablePatterns(List<Map<String, Object>> queries, long totalExecutions) {
-        Map<String, Object> patterns = new HashMap<>();
+    private TableAccessPatterns analyzeTablePatterns(List<AnalyzedQuery> queries, long totalExecutions) {
+        TableAccessPatterns patterns = new TableAccessPatterns();
         
         // Find tables that are always accessed together
         Map<Set<String>, Long> tableSetFrequency = new HashMap<>();
         
-        for (Map<String, Object> query : queries) {
-            @SuppressWarnings("unchecked")
-            List<String> tables = (List<String>) query.get("tablesAccessed");
+        for (AnalyzedQuery query : queries) {
+            List<String> tables = query.getTablesAccessed();
             if (tables.size() > 1) {
                 Set<String> tableSet = new HashSet<>(tables);
-                long executions = (Long) query.get("executionCount");
+                long executions = query.getExecutionCount();
                 tableSetFrequency.merge(tableSet, executions, Long::sum);
             }
         }
         
         // Find high-frequency table combinations
-        List<Map<String, Object>> frequentCombinations = tableSetFrequency.entrySet().stream()
+        List<TableCombination> frequentCombinations = tableSetFrequency.entrySet().stream()
             .filter(entry -> entry.getValue() > 50) // Lower threshold for test data
             .map(entry -> {
-                Map<String, Object> combo = new HashMap<>();
-                combo.put("tables", new ArrayList<>(entry.getKey()));
-                combo.put("totalExecutions", entry.getValue());
-                combo.put("executionPercentage", (entry.getValue() * 100.0) / totalExecutions);
+                TableCombination combo = new TableCombination();
+                combo.setTables(new ArrayList<>(entry.getKey()));
+                combo.setTotalExecutions(entry.getValue());
+                combo.setExecutionPercentage((entry.getValue() * 100.0) / totalExecutions);
                 return combo;
             })
             .sorted((a, b) -> Long.compare(
-                (Long) b.get("totalExecutions"), 
-                (Long) a.get("totalExecutions")
+                b.getTotalExecutions(), 
+                a.getTotalExecutions()
             ))
             .collect(Collectors.toList());
         
-        patterns.put("frequentTableCombinations", frequentCombinations);
-        patterns.put("hasStrongCoAccessPatterns", !frequentCombinations.isEmpty());
+        patterns.setFrequentTableCombinations(frequentCombinations);
+        patterns.setHasStrongCoAccessPatterns(!frequentCombinations.isEmpty());
         
         return patterns;
     }
@@ -193,35 +182,35 @@ public class QueryStoreAnalyzer {
     /**
      * Analyzes performance characteristics.
      */
-    private Map<String, Object> analyzePerformance(List<Map<String, Object>> queries) {
-        Map<String, Object> perf = new HashMap<>();
+    private PerformanceCharacteristics analyzePerformance(List<AnalyzedQuery> queries) {
+        PerformanceCharacteristics perf = new PerformanceCharacteristics();
         
         // Average metrics
         double avgDuration = queries.stream()
-            .mapToDouble(q -> (Double) q.get("avgDurationMs"))
+            .mapToDouble(AnalyzedQuery::getAvgDurationMs)
             .average()
             .orElse(0.0);
         
         double avgCpu = queries.stream()
-            .mapToDouble(q -> (Double) q.get("avgCpuTimeMs"))
+            .mapToDouble(AnalyzedQuery::getAvgCpuTimeMs)
             .average()
             .orElse(0.0);
         
         double avgReads = queries.stream()
-            .mapToDouble(q -> (Double) q.get("avgLogicalReads"))
+            .mapToDouble(AnalyzedQuery::getAvgLogicalReads)
             .average()
             .orElse(0.0);
         
-        perf.put("avgQueryDurationMs", Math.round(avgDuration * 100.0) / 100.0);
-        perf.put("avgCpuTimeMs", Math.round(avgCpu * 100.0) / 100.0);
-        perf.put("avgLogicalReads", Math.round(avgReads));
+        perf.setAvgQueryDurationMs(Math.round(avgDuration * 100.0) / 100.0);
+        perf.setAvgCpuTimeMs(Math.round(avgCpu * 100.0) / 100.0);
+        perf.setAvgLogicalReads(Math.round(avgReads));
         
         // Identify slow queries (> 100ms)
         long slowQueryCount = queries.stream()
-            .filter(q -> (Double) q.get("avgDurationMs") > 100)
+            .filter(q -> q.getAvgDurationMs() > 100)
             .count();
-        perf.put("slowQueryCount", slowQueryCount);
-        perf.put("hasPerformanceIssues", slowQueryCount > 0);
+        perf.setSlowQueryCount(slowQueryCount);
+        perf.setHasPerformanceIssues(slowQueryCount > 0);
         
         return perf;
     }
@@ -309,11 +298,10 @@ public class QueryStoreAnalyzer {
             List<QueryStoreQuery> queries = connector.getAllQueries();
             System.out.printf("Extracted %d queries from Query Store%n", queries.size());
             
-            // Analyze and export
-            String outputPath = "query_store_analysis.json";
-            analyzer.analyzeAndExport(queries, outputPath, "TestEcommerceApp");
+            // Analyze
+            QueryStoreAnalysis analysis = analyzer.analyze(queries, "TestEcommerceApp");
             
-            System.out.printf("✓ Analysis exported to: %s%n", outputPath);
+            System.out.printf("✓ Analysis completed with %d queries%n", analysis.getTotalQueriesAnalyzed());
             
         } catch (Exception e) {
             System.err.println("ERROR: " + e.getMessage());

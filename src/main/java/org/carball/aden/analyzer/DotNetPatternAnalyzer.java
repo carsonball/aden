@@ -6,7 +6,7 @@ import org.carball.aden.model.analysis.*;
 import org.carball.aden.model.entity.EntityModel;
 import org.carball.aden.model.entity.NavigationProperty;
 import org.carball.aden.model.entity.NavigationType;
-import org.carball.aden.model.query.QueryPattern;
+import org.carball.aden.model.query.*;
 import org.carball.aden.model.query.QueryType;
 import org.carball.aden.model.schema.DatabaseSchema;
 import org.carball.aden.model.schema.Relationship;
@@ -37,7 +37,7 @@ public class DotNetPatternAnalyzer {
                                           List<QueryPattern> queryPatterns,
                                           DatabaseSchema schema,
                                           Map<String, String> dbSetMapping,
-                                          Map<String, Object> productionMetrics) {
+                                          QueryStoreAnalysis productionMetrics) {
 
         log.info("Analyzing patterns for {} entities and {} query patterns using thresholds: {}",
                 entities.size(), queryPatterns.size(), thresholds.getConfigurationSummary());
@@ -75,7 +75,7 @@ public class DotNetPatternAnalyzer {
     }
 
     private Map<String, EntityUsageProfile> buildUsageProfiles(
-            List<EntityModel> entities, List<QueryPattern> queryPatterns, Map<String, String> dbSetMapping, Map<String, Object> productionMetrics) {
+            List<EntityModel> entities, List<QueryPattern> queryPatterns, Map<String, String> dbSetMapping, QueryStoreAnalysis productionMetrics) {
 
         Map<String, EntityUsageProfile> profiles = new HashMap<>();
 
@@ -157,14 +157,13 @@ public class DotNetPatternAnalyzer {
         }
     }
     
-    @SuppressWarnings("unchecked")
     private void integrateProductionMetrics(Map<String, EntityUsageProfile> profiles, 
-                                          Map<String, Object> productionMetrics,
+                                          QueryStoreAnalysis productionMetrics,
                                           Map<String, String> dbSetMapping) {
         log.info("Integrating production metrics into entity usage profiles");
         
         // Extract qualified metrics
-        Map<String, Object> qualifiedMetrics = (Map<String, Object>) productionMetrics.get("qualifiedMetrics");
+        QualifiedMetrics qualifiedMetrics = productionMetrics.getQualifiedMetrics();
         if (qualifiedMetrics == null) {
             log.warn("No qualified metrics found in production data");
             return;
@@ -182,16 +181,16 @@ public class DotNetPatternAnalyzer {
         }
         
         // Extract table access patterns
-        Map<String, Object> tablePatterns = (Map<String, Object>) qualifiedMetrics.get("tableAccessPatterns");
+        TableAccessPatterns tablePatterns = qualifiedMetrics.getTableAccessPatterns();
         if (tablePatterns != null) {
-            List<Map<String, Object>> frequentCombinations = 
-                (List<Map<String, Object>>) tablePatterns.get("frequentTableCombinations");
+            List<TableCombination> frequentCombinations = 
+                tablePatterns.getFrequentTableCombinations();
             
             if (frequentCombinations != null) {
                 // Process co-accessed tables
-                for (Map<String, Object> combo : frequentCombinations) {
-                    List<String> tables = (List<String>) combo.get("tables");
-                    Long executions = (Long) combo.get("totalExecutions");
+                for (TableCombination combo : frequentCombinations) {
+                    List<String> tables = combo.getTables();
+                    long executions = combo.getTotalExecutions();
                     
                     // Map table names to entity names using explicit mappings
                     for (String table : tables) {
@@ -215,7 +214,7 @@ public class DotNetPatternAnalyzer {
                                             otherEntity = tableToEntityMap.get(otherTable.toLowerCase());
                                         }
                                         if (otherEntity != null) {
-                                            profile.addCoAccessedEntity(otherEntity, executions.intValue());
+                                            profile.addCoAccessedEntity(otherEntity, (int) executions);
                                         }
                                     }
                                 }
@@ -227,15 +226,15 @@ public class DotNetPatternAnalyzer {
         }
         
         // Extract per-table metrics from analyzed queries
-        List<Map<String, Object>> analyzedQueries = (List<Map<String, Object>>) productionMetrics.get("queries");
+        List<AnalyzedQuery> analyzedQueries = productionMetrics.getQueries();
         if (analyzedQueries != null) {
             Map<String, Long> tableReadCounts = new HashMap<>();
             Map<String, Long> tableWriteCounts = new HashMap<>();
             
-            for (Map<String, Object> query : analyzedQueries) {
-                String operationType = (String) query.get("operationType");
-                List<String> tables = (List<String>) query.get("tablesAccessed");
-                Long execCount = (Long) query.get("executionCount");
+            for (AnalyzedQuery query : analyzedQueries) {
+                String operationType = query.getOperationType();
+                List<String> tables = query.getTablesAccessed();
+                long execCount = query.getExecutionCount();
                 
                 for (String table : tables) {
                     if ("SELECT".equals(operationType)) {
@@ -286,7 +285,7 @@ public class DotNetPatternAnalyzer {
 
     private void analyzeRelationshipPatterns(Map<String, EntityUsageProfile> profiles,
                                              DatabaseSchema schema,
-                                             Map<String, Object> productionMetrics) {
+                                             QueryStoreAnalysis productionMetrics) {
         // First, identify actual relationships from the database schema
         for (Relationship relationship : schema.getRelationships()) {
             EntityUsageProfile fromProfile = profiles.get(relationship.getFromTable());
@@ -327,23 +326,22 @@ public class DotNetPatternAnalyzer {
         }
     }
     
-    @SuppressWarnings("unchecked")
     private void integrateProductionCoAccessPatterns(Map<String, EntityUsageProfile> profiles,
-                                                   Map<String, Object> productionMetrics) {
+                                                   QueryStoreAnalysis productionMetrics) {
         // The co-access patterns are already integrated in integrateProductionMetrics
         // but we can add additional relationship analysis here if needed
         
         // Extract qualified metrics
-        Map<String, Object> qualifiedMetrics = (Map<String, Object>) productionMetrics.get("qualifiedMetrics");
+        QualifiedMetrics qualifiedMetrics = productionMetrics.getQualifiedMetrics();
         if (qualifiedMetrics == null) {
             return;
         }
         
         // Check for strong co-access patterns
-        Map<String, Object> tablePatterns = (Map<String, Object>) qualifiedMetrics.get("tableAccessPatterns");
+        TableAccessPatterns tablePatterns = qualifiedMetrics.getTableAccessPatterns();
         if (tablePatterns != null) {
-            Boolean hasStrongCoAccessPatterns = (Boolean) tablePatterns.get("hasStrongCoAccessPatterns");
-            if (Boolean.TRUE.equals(hasStrongCoAccessPatterns)) {
+            boolean hasStrongCoAccessPatterns = tablePatterns.isHasStrongCoAccessPatterns();
+            if (hasStrongCoAccessPatterns) {
                 log.info("Found strong co-access patterns in production data - these will influence denormalization candidates");
             }
         }

@@ -13,7 +13,7 @@ import java.util.stream.Stream;
 @Slf4j
 public class EFModelParser {
 
-    private Map<String, String> dbSetPropertyToEntityMap = new HashMap<>();
+    private final Map<String, String> dbSetPropertyToEntityMap = new HashMap<>();
 
     private static final Pattern CLASS_PATTERN =
             Pattern.compile("public\\s+(?:partial\\s+)?class\\s+(\\w+)(?:\\s*:\\s*([\\w\\s,]+))?");
@@ -22,21 +22,21 @@ public class EFModelParser {
             Pattern.compile("public\\s+virtual\\s+(?:ICollection|IList|List|HashSet)<(\\w+)>\\s+(\\w+)");
 
     private static final Pattern NAVIGATION_REFERENCE_PATTERN =
-            Pattern.compile("public\\s+virtual\\s+(\\w+)\\s+(\\w+)\\s*\\{\\s*get;\\s*set;\\s*\\}");
+            Pattern.compile("public\\s+virtual\\s+(\\w+)\\s+(\\w+)\\s*\\{\\s*get;\\s*set;\\s*}");
 
     private static final Pattern FOREIGN_KEY_ATTRIBUTE_PATTERN =
-            Pattern.compile("\\[ForeignKey\\(\"(\\w+)\"\\)\\]");
+            Pattern.compile("\\[ForeignKey\\(\"(\\w+)\"\\)]");
 
     private static final Pattern DATA_ANNOTATION_PATTERN =
-            Pattern.compile("\\[(\\w+)(?:\\(([^)]+)\\))?\\]");
+            Pattern.compile("\\[(\\w+)(?:\\(([^)]+)\\))?]");
 
     private static final Pattern DBSET_PATTERN =
-            Pattern.compile("public\\s+DbSet<(\\w+)>\\s+(\\w+)\\s*\\{\\s*get;\\s*set;\\s*\\}");
+            Pattern.compile("public\\s+DbSet<(\\w+)>\\s+(\\w+)\\s*\\{\\s*get;\\s*set;\\s*}");
             
     private static final Pattern TOTABLE_PATTERN = 
             Pattern.compile("modelBuilder\\.Entity<(\\w+)>\\(\\)\\s*\\.ToTable\\(\"(\\w+)\"\\)");
             
-    private Map<String, String> entityToTableMappings = new HashMap<>();
+    private final Map<String, String> entityToTableMappings = new HashMap<>();
 
     private static final List<String> PRIMITIVE_TYPES = Arrays.asList(
             "string", "int", "long", "bool", "boolean", "DateTime", "DateTimeOffset",

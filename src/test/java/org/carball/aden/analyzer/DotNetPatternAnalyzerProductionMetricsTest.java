@@ -5,8 +5,7 @@ import org.carball.aden.model.analysis.AnalysisResult;
 import org.carball.aden.model.analysis.DenormalizationCandidate;
 import org.carball.aden.model.analysis.EntityUsageProfile;
 import org.carball.aden.model.entity.EntityModel;
-import org.carball.aden.model.query.QueryPattern;
-import org.carball.aden.model.query.QueryType;
+import org.carball.aden.model.query.*;
 import org.carball.aden.model.schema.DatabaseSchema;
 import org.carball.aden.model.schema.Relationship;
 import org.carball.aden.model.schema.RelationshipType;
@@ -90,7 +89,7 @@ public class DotNetPatternAnalyzerProductionMetricsTest {
     @Test
     void testProductionMetricsInfluenceCandidateSelection() {
         // Create production metrics showing CustomerProfile is frequently co-accessed
-        Map<String, Object> productionMetrics = createProductionMetrics();
+        QueryStoreAnalysis productionMetrics = createProductionMetrics();
 
         // Analyze without production metrics first
         AnalysisResult resultWithoutMetrics = analyzer.analyzePatterns(
@@ -129,7 +128,7 @@ public class DotNetPatternAnalyzerProductionMetricsTest {
         pattern2.setQueryType(QueryType.EAGER_LOADING);
         queryPatterns.add(pattern2);
 
-        Map<String, Object> productionMetrics = createProductionMetrics();
+        QueryStoreAnalysis productionMetrics = createProductionMetrics();
 
         AnalysisResult resultWithoutMetrics = analyzer.analyzePatterns(
                 entities, queryPatterns, schema, dbSetMapping);
@@ -165,7 +164,7 @@ public class DotNetPatternAnalyzerProductionMetricsTest {
         // Also add table to schema
         schema.addTable(new Table("Customers"));
 
-        Map<String, Object> productionMetrics = createProductionMetricsWithCustomTableName();
+        QueryStoreAnalysis productionMetrics = createProductionMetricsWithCustomTableName();
 
         AnalysisResult result = analyzer.analyzePatterns(
                 entities, queryPatterns, schema, dbSetMapping, productionMetrics);
@@ -178,74 +177,88 @@ public class DotNetPatternAnalyzerProductionMetricsTest {
         assertThat(profile.getProductionReadWriteRatio()).isEqualTo(1500.0); // All reads, no writes
     }
 
-    private Map<String, Object> createProductionMetrics() {
-        Map<String, Object> metrics = new HashMap<>();
-        
-        // Qualified metrics
-        Map<String, Object> qualifiedMetrics = new HashMap<>();
-        
-        // Table access patterns
-        Map<String, Object> tablePatterns = new HashMap<>();
-        List<Map<String, Object>> frequentCombinations = new ArrayList<>();
-        
-        // Customer and CustomerProfile are frequently accessed together
-        Map<String, Object> combo1 = new HashMap<>();
-        combo1.put("tables", Arrays.asList("Customer", "CustomerProfile"));
-        combo1.put("totalExecutions", 5000L);
-        combo1.put("executionPercentage", 45.0);
-        frequentCombinations.add(combo1);
-        
-        tablePatterns.put("frequentTableCombinations", frequentCombinations);
-        tablePatterns.put("hasStrongCoAccessPatterns", true);
-        qualifiedMetrics.put("tableAccessPatterns", tablePatterns);
-        
-        metrics.put("qualifiedMetrics", qualifiedMetrics);
+    private QueryStoreAnalysis createProductionMetrics() {
+        QueryStoreAnalysis analysis = new QueryStoreAnalysis();
+        analysis.setDatabase("TestDB");
+        analysis.setAnalysisType("QUERY_STORE_PRODUCTION_METRICS");
+        analysis.setTimestamp(new Date());
+        analysis.setTotalQueriesAnalyzed(2);
         
         // Individual queries
-        List<Map<String, Object>> queries = new ArrayList<>();
+        List<AnalyzedQuery> queries = new ArrayList<>();
         
         // Query accessing Customer and CustomerProfile
-        Map<String, Object> query1 = new HashMap<>();
-        query1.put("queryId", 1L);
-        query1.put("executionCount", 3000L);
-        query1.put("operationType", "SELECT");
-        query1.put("tablesAccessed", Arrays.asList("Customer", "CustomerProfile"));
+        AnalyzedQuery query1 = new AnalyzedQuery();
+        query1.setQueryId(1L);
+        query1.setExecutionCount(3000L);
+        query1.setOperationType("SELECT");
+        query1.setTablesAccessed(Arrays.asList("Customer", "CustomerProfile"));
         queries.add(query1);
         
         // Query accessing just CustomerProfile
-        Map<String, Object> query2 = new HashMap<>();
-        query2.put("queryId", 2L);
-        query2.put("executionCount", 2000L);
-        query2.put("operationType", "SELECT");
-        query2.put("tablesAccessed", Arrays.asList("CustomerProfile"));
+        AnalyzedQuery query2 = new AnalyzedQuery();
+        query2.setQueryId(2L);
+        query2.setExecutionCount(2000L);
+        query2.setOperationType("SELECT");
+        query2.setTablesAccessed(Arrays.asList("CustomerProfile"));
         queries.add(query2);
         
-        metrics.put("queries", queries);
+        analysis.setQueries(queries);
         
-        return metrics;
+        // Qualified metrics
+        QualifiedMetrics qualifiedMetrics = new QualifiedMetrics();
+        qualifiedMetrics.setTotalExecutions(5000L);
+        
+        // Table access patterns
+        TableAccessPatterns tablePatterns = new TableAccessPatterns();
+        List<TableCombination> frequentCombinations = new ArrayList<>();
+        
+        // Customer and CustomerProfile are frequently accessed together
+        TableCombination combo1 = new TableCombination();
+        combo1.setTables(Arrays.asList("Customer", "CustomerProfile"));
+        combo1.setTotalExecutions(5000L);
+        combo1.setExecutionPercentage(45.0);
+        frequentCombinations.add(combo1);
+        
+        tablePatterns.setFrequentTableCombinations(frequentCombinations);
+        tablePatterns.setHasStrongCoAccessPatterns(true);
+        qualifiedMetrics.setTableAccessPatterns(tablePatterns);
+        
+        analysis.setQualifiedMetrics(qualifiedMetrics);
+        
+        return analysis;
     }
 
-    private Map<String, Object> createProductionMetricsWithCustomTableName() {
-        Map<String, Object> metrics = new HashMap<>();
-        
-        Map<String, Object> qualifiedMetrics = new HashMap<>();
-        Map<String, Object> tablePatterns = new HashMap<>();
-        tablePatterns.put("frequentTableCombinations", new ArrayList<>());
-        qualifiedMetrics.put("tableAccessPatterns", tablePatterns);
-        metrics.put("qualifiedMetrics", qualifiedMetrics);
+    private QueryStoreAnalysis createProductionMetricsWithCustomTableName() {
+        QueryStoreAnalysis analysis = new QueryStoreAnalysis();
+        analysis.setDatabase("TestDB");
+        analysis.setAnalysisType("QUERY_STORE_PRODUCTION_METRICS");
+        analysis.setTimestamp(new Date());
+        analysis.setTotalQueriesAnalyzed(1);
         
         // Query with custom table name
-        List<Map<String, Object>> queries = new ArrayList<>();
-        Map<String, Object> query = new HashMap<>();
-        query.put("queryId", 1L);
-        query.put("executionCount", 1500L);
-        query.put("operationType", "SELECT");
-        query.put("tablesAccessed", Arrays.asList("Customers")); // Matches entityWithCustomTable.tableName
+        List<AnalyzedQuery> queries = new ArrayList<>();
+        AnalyzedQuery query = new AnalyzedQuery();
+        query.setQueryId(1L);
+        query.setExecutionCount(1500L);
+        query.setOperationType("SELECT");
+        query.setTablesAccessed(Arrays.asList("Customers")); // Matches entityWithCustomTable.tableName
         queries.add(query);
         
-        metrics.put("queries", queries);
+        analysis.setQueries(queries);
         
-        return metrics;
+        // Qualified metrics
+        QualifiedMetrics qualifiedMetrics = new QualifiedMetrics();
+        qualifiedMetrics.setTotalExecutions(1500L);
+        
+        TableAccessPatterns tablePatterns = new TableAccessPatterns();
+        tablePatterns.setFrequentTableCombinations(new ArrayList<>());
+        tablePatterns.setHasStrongCoAccessPatterns(false);
+        qualifiedMetrics.setTableAccessPatterns(tablePatterns);
+        
+        analysis.setQualifiedMetrics(qualifiedMetrics);
+        
+        return analysis;
     }
 
     private DenormalizationCandidate findCandidate(List<DenormalizationCandidate> candidates, String entityName) {

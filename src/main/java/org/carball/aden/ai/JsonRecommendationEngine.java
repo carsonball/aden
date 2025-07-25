@@ -60,7 +60,7 @@ public class JsonRecommendationEngine {
     public List<NoSQLRecommendation> generateRecommendations(AnalysisResult analysis, 
                                                             DatabaseSchema schema, 
                                                             List<QueryPattern> queryPatterns,
-                                                            Map<String, Object> productionMetrics) {
+                                                            QueryStoreAnalysis productionMetrics) {
         List<NoSQLRecommendation> recommendations = new ArrayList<>();
 
         if ("true".equals(System.getProperty("skip.ai"))) {
@@ -233,7 +233,7 @@ public class JsonRecommendationEngine {
     private String buildJsonPrompt(AnalysisResult analysis,
                                   DatabaseSchema schema,
                                   List<QueryPattern> queryPatterns,
-                                  Map<String, Object> productionMetrics) {
+                                  QueryStoreAnalysis productionMetrics) {
         StringBuilder prompt = new StringBuilder();
         
         // Context section
@@ -355,29 +355,23 @@ public class JsonRecommendationEngine {
         """;
     }
 
-    private void appendProductionMetricsSummary(StringBuilder prompt, Map<String, Object> productionMetrics) {
+    private void appendProductionMetricsSummary(StringBuilder prompt, QueryStoreAnalysis productionMetrics) {
         prompt.append("\n## Production Metrics Summary:\n");
         
-        @SuppressWarnings("unchecked")
-        Map<String, Object> qualifiedMetrics = (Map<String, Object>) productionMetrics.get("qualifiedMetrics");
+        QualifiedMetrics qualifiedMetrics = productionMetrics.getQualifiedMetrics();
         if (qualifiedMetrics != null) {
-            Object totalExecutions = qualifiedMetrics.get("totalExecutions");
-            if (totalExecutions != null) {
-                prompt.append("- Total Query Executions: ")
-                      .append(String.format("%,d", ((Number) totalExecutions).longValue())).append("\n");
-            }
+            long totalExecutions = qualifiedMetrics.getTotalExecutions();
+            prompt.append("- Total Query Executions: ")
+                  .append(String.format("%,d", totalExecutions)).append("\n");
             
-            Object readWriteRatio = qualifiedMetrics.get("readWriteRatio");
-            if (readWriteRatio != null) {
-                prompt.append("- Overall Read/Write Ratio: ")
-                      .append(String.format("%.1f:1", ((Number) readWriteRatio).doubleValue())).append("\n");
-            }
+            double readWriteRatio = qualifiedMetrics.getReadWriteRatio();
+            prompt.append("- Overall Read/Write Ratio: ")
+                  .append(String.format("%.1f:1", readWriteRatio)).append("\n");
             
-            @SuppressWarnings("unchecked")
-            Map<String, Object> tablePatterns = (Map<String, Object>) qualifiedMetrics.get("tableAccessPatterns");
+            TableAccessPatterns tablePatterns = qualifiedMetrics.getTableAccessPatterns();
             if (tablePatterns != null) {
-                Boolean hasCoAccess = (Boolean) tablePatterns.get("hasStrongCoAccessPatterns");
-                if (Boolean.TRUE.equals(hasCoAccess)) {
+                boolean hasCoAccess = tablePatterns.isHasStrongCoAccessPatterns();
+                if (hasCoAccess) {
                     prompt.append("- Strong table co-access patterns detected\n");
                 }
             }

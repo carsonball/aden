@@ -7,12 +7,12 @@ import org.carball.aden.model.analysis.AnalysisResult;
 import org.carball.aden.model.analysis.NoSQLTarget;
 import org.carball.aden.model.query.QueryPattern;
 import org.carball.aden.model.query.QueryStoreQuery;
+import org.carball.aden.model.query.QueryStoreAnalysis;
+import org.carball.aden.model.query.QualifiedMetrics;
 import org.carball.aden.model.recommendation.NoSQLRecommendation;
 import org.carball.aden.output.MigrationReport;
 import org.carball.aden.parser.QueryStoreAnalyzer;
 import org.carball.aden.parser.QueryStoreConnector;
-
-import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -66,7 +66,7 @@ public class DotNetAnalyzerCLI {
             DotNetAnalyzer analyzer = new DotNetAnalyzer(config, args);
 
             // Step 1: Analyze Query Store first if connection string provided
-            Map<String, Object> productionMetrics = null;
+            QueryStoreAnalysis productionMetrics = null;
             if (connectionString != null) {
                 System.out.print("📈 Analyzing Query Store production metrics... ");
                 productionMetrics = analyzeQueryStore(connectionString, config);
@@ -113,6 +113,7 @@ public class DotNetAnalyzerCLI {
         } catch (IllegalArgumentException e) {
             System.err.println("\n❌ Configuration error: " + e.getMessage());
             System.err.println("\nRun with --help for usage information.");
+            log.debug("Configuration error details", e);
             System.exit(1);
         } catch (IOException e) {
             System.err.println("\n❌ IO error: " + e.getMessage());
@@ -446,7 +447,7 @@ public class DotNetAnalyzerCLI {
         return null;
     }
     
-    private static Map<String, Object> analyzeQueryStore(String connectionString, DotNetAnalyzerConfig config) throws IOException {
+    private static QueryStoreAnalysis analyzeQueryStore(String connectionString, DotNetAnalyzerConfig config) throws IOException {
         try {
             // Validate JDBC format
             if (!connectionString.startsWith("jdbc:sqlserver://")) {
@@ -470,26 +471,15 @@ public class DotNetAnalyzerCLI {
             
             // Analyze the queries
             QueryStoreAnalyzer analyzer = new QueryStoreAnalyzer();
-            File tempFile = File.createTempFile("query_store_analysis_", ".json");
-            tempFile.deleteOnExit();
-            
-            analyzer.analyzeAndExport(queries, tempFile.getAbsolutePath(), databaseName);
-            
-            // Read the analysis results
-            ObjectMapper mapper = new ObjectMapper();
-            @SuppressWarnings("unchecked")
-            Map<String, Object> analysisResult = mapper.readValue(tempFile, Map.class);
+            QueryStoreAnalysis analysisResult = analyzer.analyze(queries, databaseName);
             
             // Log summary if verbose
             if (config.isVerbose()) {
                 System.out.println("     - Analyzed " + queries.size() + " queries from Query Store");
-                @SuppressWarnings("unchecked")
-                Map<String, Object> metrics = (Map<String, Object>) analysisResult.get("qualifiedMetrics");
+                QualifiedMetrics metrics = analysisResult.getQualifiedMetrics();
                 if (metrics != null) {
-                    Object totalExec = metrics.get("totalExecutions");
-                    if (totalExec != null) {
-                        System.out.println("     - Total executions: " + String.format("%,d", ((Number) totalExec).longValue()));
-                    }
+                    long totalExec = metrics.getTotalExecutions();
+                    System.out.println("     - Total executions: " + String.format("%,d", totalExec));
                 }
             }
             
