@@ -131,6 +131,22 @@ public class MigrationReport {
                 });
                 md.append("\n");
             }
+            
+            if (rec.getDesignRationale() != null) {
+                md.append("#### Design Rationale\n\n");
+                md.append("**Denormalization Strategy:** ").append(rec.getDesignRationale().getDenormalizationStrategy()).append("\n\n");
+                md.append("**Key Design Justification:** ").append(rec.getDesignRationale().getKeyDesignJustification()).append("\n\n");
+                md.append("**Relationship Handling:** ").append(rec.getDesignRationale().getRelationshipHandling()).append("\n\n");
+                md.append("**Performance Optimizations:** ").append(rec.getDesignRationale().getPerformanceOptimizations()).append("\n\n");
+                md.append("**Access Pattern Analysis:** ").append(rec.getDesignRationale().getAccessPatternAnalysis()).append("\n\n");
+                
+                if (rec.getDesignRationale().getTradeoffsConsidered() != null && !rec.getDesignRationale().getTradeoffsConsidered().isEmpty()) {
+                    md.append("**Trade-offs Considered:**\n");
+                    rec.getDesignRationale().getTradeoffsConsidered().forEach(tradeoff -> 
+                        md.append("- ").append(tradeoff).append("\n"));
+                    md.append("\n");
+                }
+            }
         }
 
         // Query Pattern Analysis
@@ -248,7 +264,7 @@ public class MigrationReport {
     private long calculateTotalSavings() {
         // Extract percentage from recommendation strings and average them
         return (long) recommendations.stream()
-                .map(rec -> rec.getEstimatedCostSaving())
+                .map(NoSQLRecommendation::getEstimatedCostSaving)
                 .map(this::extractPercentage)
                 .filter(pct -> pct > 0)
                 .mapToLong(Long::valueOf)
@@ -319,7 +335,7 @@ public class MigrationReport {
 
         // Estimate current SQL Server costs (simplified)
         int entityCount = analysisResult.getUsageProfiles().size();
-        long estimatedMonthlySQL = 1000 + (entityCount * 250); // Base + per-entity
+        long estimatedMonthlySQL = 1000 + (entityCount * 250L); // Base + per-entity
         cost.setCurrentSqlServerCost("$" + estimatedMonthlySQL + "/month");
 
         // Estimate AWS costs based on recommendations

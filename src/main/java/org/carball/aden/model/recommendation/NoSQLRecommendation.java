@@ -15,4 +15,5 @@ public class NoSQLRecommendation {
     private String estimatedCostSaving;
     private String migrationEffort;
     private String schemaDesign;
+    private DesignRationale designRationale;
 }

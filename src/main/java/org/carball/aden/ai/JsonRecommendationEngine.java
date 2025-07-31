@@ -257,6 +257,7 @@ public class JsonRecommendationEngine {
             ).append("\n");
             prompt.append("- Migration Complexity: ").append(candidate.getComplexity()).append("\n");
             prompt.append("- Score: ").append(candidate.getScore()).append("\n");
+            prompt.append("- Selection Reason: ").append(candidate.getReason()).append("\n");
             
             EntityUsageProfile profile = analysis.getUsageProfiles().get(candidate.getPrimaryEntity());
             if (profile != null) {
@@ -265,6 +266,45 @@ public class JsonRecommendationEngine {
                 prompt.append("- Access Pattern: ").append(
                         profile.hasSimpleKeyBasedAccess() ? "Simple key-based" : "Complex queries"
                 ).append("\n");
+                
+                // Add production metrics if available
+                if (profile.getProductionExecutionCount() > 0) {
+                    prompt.append("- Production Execution Count: ").append(profile.getProductionExecutionCount()).append("\n");
+                    prompt.append("- Production Read/Write Ratio: ").append(
+                            String.format("%.1f:1", profile.getProductionReadWriteRatio())
+                    ).append("\n");
+                }
+                
+                // Add co-accessed entities (85% threshold)
+                if (!profile.getCoAccessedEntities().isEmpty()) {
+                    List<Map.Entry<String, Integer>> sortedCoAccess = profile.getCoAccessedEntities().entrySet().stream()
+                            .sorted((a, b) -> b.getValue().compareTo(a.getValue()))
+                            .toList();
+                    
+                    int totalCount = sortedCoAccess.stream().mapToInt(Map.Entry::getValue).sum();
+                    int threshold = (int)(totalCount * 0.85);
+                    int cumulativeCount = 0;
+                    
+                    prompt.append("- Frequently Co-Accessed With: ");
+                    for (Map.Entry<String, Integer> entry : sortedCoAccess) {
+                        if (cumulativeCount >= threshold) break;
+                        prompt.append(entry.getKey()).append(" (").append(entry.getValue()).append("x), ");
+                        cumulativeCount += entry.getValue();
+                    }
+                    if (prompt.toString().endsWith(", ")) {
+                        prompt.setLength(prompt.length() - 2); // Remove trailing comma
+                    }
+                    prompt.append("\n");
+                }
+                
+                // Add relationship types
+                if (!profile.getRelatedEntities().isEmpty()) {
+                    prompt.append("- Relationship Types: ");
+                    profile.getRelatedEntities().forEach((entity, type) -> 
+                            prompt.append(entity).append(" (").append(type).append("), "));
+                    prompt.setLength(prompt.length() - 2); // Remove trailing comma
+                    prompt.append("\n");
+                }
             }
             
             // Add query patterns if available
@@ -285,6 +325,12 @@ public class JsonRecommendationEngine {
         prompt.append("\n\nEnsure all entities are included in the recommendations array.");
         prompt.append("\nConsider single-table design where entities are frequently accessed together.");
         prompt.append("\nProvide specific, actionable recommendations for each entity.");
+        prompt.append("\n\nIMPORTANT: For each entity, provide a detailed designRationale that explains:");
+        prompt.append("\n- How the usage patterns (eager loading, co-access, read/write ratios) influenced your design");
+        prompt.append("\n- Why you chose the specific partition and sort keys based on the access patterns");
+        prompt.append("\n- How relationships and co-access data shaped the denormalization strategy");
+        prompt.append("\n- What performance optimizations were made based on production metrics");
+        prompt.append("\n- Trade-offs between different design approaches");
         
         return prompt.toString();
     }
@@ -342,6 +388,18 @@ public class JsonRecommendationEngine {
                 "sharedTableName": "ApplicationData",
                 "entityDiscriminator": "entityType",
                 "explanation": "Customer and Order entities are always accessed together"
+              },
+              "designRationale": {
+                "denormalizationStrategy": "Single-table design combining Customer with frequently co-accessed Order and OrderItem entities based on 85% of co-access patterns",
+                "keyDesignJustification": "CustomerId as partition key enables efficient customer lookups; composite sort key with entityType allows storing multiple entity types while maintaining query efficiency",
+                "relationshipHandling": "1:N Customer-Order relationship preserved through sort key design; Order items embedded as nested documents to reduce joins",
+                "performanceOptimizations": "GSI on email optimizes customer lookup pattern; sparse index on orderStatus reduces scan costs for order queries",
+                "accessPatternAnalysis": "Analysis shows 95% of queries retrieve customer with recent orders, supporting single-table design. Read-heavy workload (10:1) favors denormalization",
+                "tradeoffsConsidered": [
+                  "Single table reduces join complexity but increases item size",
+                  "Denormalization improves read performance but requires careful update orchestration",
+                  "GSI costs offset by elimination of join operations"
+                ]
               }
             }
           ],
@@ -510,6 +568,11 @@ public class JsonRecommendationEngine {
             // Schema design - build from structured data
             recommendation.setSchemaDesign(buildSchemaDesignText(entityRec));
             
+            // Design rationale
+            if (entityRec.getDesignRationale() != null) {
+                recommendation.setDesignRationale(convertDesignRationale(entityRec.getDesignRationale()));
+            }
+            
             recommendations.add(recommendation);
         }
         
@@ -541,6 +604,18 @@ public class JsonRecommendationEngine {
                 .partitionKey(gsiDef.getPartitionKey())
                 .sortKey(gsiDef.getSortKey())
                 .purpose(gsiDef.getPurpose())
+                .build();
+    }
+
+    private DesignRationale convertDesignRationale(RecommendationResponse.DesignRationale responseRationale) {
+        return DesignRationale.builder()
+                .denormalizationStrategy(responseRationale.getDenormalizationStrategy())
+                .keyDesignJustification(responseRationale.getKeyDesignJustification())
+                .relationshipHandling(responseRationale.getRelationshipHandling())
+                .performanceOptimizations(responseRationale.getPerformanceOptimizations())
+                .accessPatternAnalysis(responseRationale.getAccessPatternAnalysis())
+                .tradeoffsConsidered(responseRationale.getTradeoffsConsidered() != null ? 
+                        new ArrayList<>(responseRationale.getTradeoffsConsidered()) : new ArrayList<>())
                 .build();
     }
 

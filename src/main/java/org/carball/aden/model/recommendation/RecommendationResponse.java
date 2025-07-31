@@ -61,6 +61,9 @@ public class RecommendationResponse {
         
         @JsonProperty("singleTableDesign")
         private SingleTableDesign singleTableDesign;
+        
+        @JsonProperty("designRationale")
+        private DesignRationale designRationale;
     }
     
     @Data
@@ -172,6 +175,30 @@ public class RecommendationResponse {
         
         @JsonProperty("explanation")
         private String explanation;
+    }
+    
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public static class DesignRationale {
+        @JsonProperty("denormalizationStrategy")
+        private String denormalizationStrategy;
+        
+        @JsonProperty("keyDesignJustification")
+        private String keyDesignJustification;
+        
+        @JsonProperty("relationshipHandling")
+        private String relationshipHandling;
+        
+        @JsonProperty("performanceOptimizations")
+        private String performanceOptimizations;
+        
+        @JsonProperty("accessPatternAnalysis")
+        private String accessPatternAnalysis;
+        
+        @JsonProperty("tradeoffsConsidered")
+        private List<String> tradeoffsConsidered;
     }
     
     @Data
