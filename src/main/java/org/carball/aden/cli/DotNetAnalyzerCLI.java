@@ -53,7 +53,13 @@ public class DotNetAnalyzerCLI {
             System.out.println("\n🔍 Starting analysis...");
             System.out.println("   Schema file: " + config.getSchemaFile());
             System.out.println("   Source directory: " + config.getSourceDirectory());
-            System.out.println("   Output: " + config.getOutputFile());
+            
+            if (config.getOutputFormat() == OutputFormat.BOTH) {
+                String baseFileName = removeFileExtension(config.getOutputFile());
+                System.out.println("   Output: " + baseFileName + ".json, " + baseFileName + ".md");
+            } else {
+                System.out.println("   Output: " + config.getOutputFile());
+            }
             if (config.getMigrationProfile() != null) {
                 System.out.println("   Migration profile: " + config.getMigrationProfile());
             }
@@ -93,11 +99,14 @@ public class DotNetAnalyzerCLI {
             printSummary(result, recommendations);
 
             System.out.println("\n✅ Analysis complete!");
-            System.out.println("   Output file: " + config.getOutputFile());
-
+            
             if (config.getOutputFormat() == OutputFormat.BOTH) {
-                String markdownFile = config.getOutputFile().replace(".json", ".md");
-                System.out.println("   Markdown report: " + markdownFile);
+                String baseFileName = removeFileExtension(config.getOutputFile());
+                System.out.println("   Output files:");
+                System.out.println("     - " + baseFileName + ".json");
+                System.out.println("     - " + baseFileName + ".md");
+            } else {
+                System.out.println("   Output file: " + config.getOutputFile());
             }
             
             // Provide profile suggestions if no candidates found
@@ -211,7 +220,8 @@ public class DotNetAnalyzerCLI {
                         throw new IllegalArgumentException("Output format not specified");
                     }
                     try {
-                        config.setOutputFormat(OutputFormat.valueOf(args[++i].toUpperCase()));
+                        OutputFormat format = OutputFormat.valueOf(args[++i].toUpperCase());
+                        config.setOutputFormat(format);
                     } catch (IllegalArgumentException e) {
                         throw new IllegalArgumentException("Invalid output format. Use: json, markdown, or both");
                     }
@@ -279,11 +289,38 @@ public class DotNetAnalyzerCLI {
                     }
             }
         }
+        
+        // Apply correct file extension based on format
+        String outputFile = config.getOutputFile();
+        String baseFileName = removeFileExtension(outputFile);
+        
+        switch (config.getOutputFormat()) {
+            case MARKDOWN:
+                config.setOutputFile(baseFileName + ".md");
+                break;
+            case BOTH:
+            case JSON:
+            default:
+                config.setOutputFile(baseFileName + ".json");
+                break;
+        }
 
         // Validate configuration
         validateConfig(config);
 
         return config;
+    }
+    
+    private static String removeFileExtension(String filename) {
+        int lastDotIndex = filename.lastIndexOf('.');
+        if (lastDotIndex > 0 && lastDotIndex < filename.length() - 1) {
+            // Check if this is a path with directories
+            int lastSeparatorIndex = Math.max(filename.lastIndexOf('/'), filename.lastIndexOf('\\'));
+            if (lastDotIndex > lastSeparatorIndex) {
+                return filename.substring(0, lastDotIndex);
+            }
+        }
+        return filename;
     }
 
     private static List<NoSQLTarget> parseTargetServices(String targets) {
@@ -346,15 +383,19 @@ public class DotNetAnalyzerCLI {
                                       DotNetAnalyzerConfig config) throws IOException {
 
         MigrationReport report = new MigrationReport(result, recommendations);
+        String baseFileName = removeFileExtension(config.getOutputFile());
 
         if (config.getOutputFormat() == OutputFormat.JSON || config.getOutputFormat() == OutputFormat.BOTH) {
             String jsonOutput = report.toJson();
-            Files.writeString(Paths.get(config.getOutputFile()), jsonOutput);
+            String jsonFile = config.getOutputFormat() == OutputFormat.BOTH ? 
+                baseFileName + ".json" : config.getOutputFile();
+            Files.writeString(Paths.get(jsonFile), jsonOutput);
         }
 
         if (config.getOutputFormat() == OutputFormat.MARKDOWN || config.getOutputFormat() == OutputFormat.BOTH) {
-            String markdownFile = config.getOutputFile().replace(".json", ".md");
             String markdownOutput = report.toMarkdown();
+            String markdownFile = config.getOutputFormat() == OutputFormat.BOTH ? 
+                baseFileName + ".md" : config.getOutputFile();
             Files.writeString(Paths.get(markdownFile), markdownOutput);
         }
     }
