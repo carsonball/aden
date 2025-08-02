@@ -278,28 +278,41 @@ public class QueryStoreAnalyzer {
     }
     
     /**
-     * Main method for testing.
-     */
+     * Main method for testing with exported Query Store file.
+     * Usage: java QueryStoreAnalyzer <path-to-export-file>
+     */    
     public static void main(String[] args) {
+        if (args.length != 1) {
+            System.out.println("Usage: java QueryStoreAnalyzer <path-to-export-file>");
+            System.out.println("Example: java QueryStoreAnalyzer query-store-export.json");
+            System.exit(1);
+        }
+        
         try {
-            String connectionString = QueryStoreConnector.createTestAppConnectionString();
-            QueryStoreConnector connector = new QueryStoreConnector(connectionString);
+            String exportFilePath = args[0];
+            QueryStoreFileConnector connector = new QueryStoreFileConnector(exportFilePath);
             QueryStoreAnalyzer analyzer = new QueryStoreAnalyzer();
             
-            System.out.println("=== Query Store Analysis ===");
+            System.out.println("=== Query Store Analysis (File-Based) ===");
+            System.out.println("Export file: " + exportFilePath);
             
-            // Verify Query Store is available
+            // Load and verify export file
+            connector.loadData();
             if (!connector.isQueryStoreEnabled()) {
-                System.out.println("ERROR: Query Store is not enabled");
-                return;
+                System.out.println("WARNING: Query Store was not enabled when data was exported");
             }
             
-            // Extract queries
+            // Extract queries from file
             List<QueryStoreQuery> queries = connector.getAllQueries();
-            System.out.printf("Extracted %d queries from Query Store%n", queries.size());
+            System.out.printf("Loaded %d queries from export file%n", queries.size());
+            
+            // Get metadata
+            QueryStoreFileConnector.ExportMetadata metadata = connector.getExportMetadata();
+            System.out.println("Database: " + metadata.getDatabaseName());
+            System.out.println("Export timestamp: " + metadata.getExportTimestamp());
             
             // Analyze
-            QueryStoreAnalysis analysis = analyzer.analyze(queries, "TestEcommerceApp");
+            QueryStoreAnalysis analysis = analyzer.analyze(queries, metadata.getDatabaseName());
             
             System.out.printf("✓ Analysis completed with %d queries%n", analysis.getTotalQueriesAnalyzed());
             

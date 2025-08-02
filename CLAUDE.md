@@ -92,13 +92,15 @@ For security-related changes:
 - Specify input validation requirements
 - Consider injection attack vectors
 
-### 4. Query Store Integration
+### 4. Query Store Integration (Secure File-Based Approach)
 
-- Requires SQL Server 2016+ with Query Store enabled
-- Connection string must be JDBC format
+- **Security-First Design**: Uses exported JSON files instead of direct database connections
+- Requires SQL Server 2016+ with Query Store enabled for data export
 - Provides production usage metrics: execution counts, read/write ratios, co-access patterns
 - Enhances AI recommendations with real-world data
-- Can be passed via --query-store parameter or ADEN_CONNECTION_STRING environment variable
+- Export files created using provided T-SQL scripts (scripts/export-query-store.sql)
+- PowerShell automation available (scripts/Setup-QueryStoreExport.ps1)
+- Eliminates need for customers to provide database credentials to external tools
 
 ## Quick Reference
 
@@ -108,11 +110,13 @@ For security-related changes:
 - `LinqAnalyzer.java` - LINQ query pattern analysis
 - `DotNetPatternAnalyzer.java` - Pattern correlation logic with relationship tracking
 - `RecommendationEngine.java` - Batched AI integration for holistic recommendations
-- `QueryStoreConnector.java` - SQL Server Query Store data extraction
+- `QueryStoreFileConnector.java` - Secure Query Store data import from JSON files
 - `QueryStoreAnalyzer.java` - Production metrics analysis from Query Store
-- `DotNetAnalyzerCLI.java` - Command line interface with --query-store support
+- `DotNetAnalyzerCLI.java` - Command line interface with --query-store-file support
 - `MigrationReport.java` - Output generation in JSON/Markdown formats
 - `EntityUsageProfile.java` - Tracks entity relationships and usage patterns
+- `scripts/export-query-store.sql` - T-SQL script for secure Query Store export
+- `scripts/Setup-QueryStoreExport.ps1` - PowerShell automation for export setup
 
 ### Key Patterns
 - Navigation properties indicate relationships (tracked in EntityUsageProfile)
@@ -138,17 +142,16 @@ mvn test -Dtest=MinimalTests
 # Test with sample application (no OpenAI key needed)
 java -Dskip.ai=true -jar target/dotnet-aws-migration-analyzer-1.0.0-jar-with-dependencies.jar samples/TestEcommerceApp/schema.sql samples/TestEcommerceApp/
 
-# Test with Query Store integration (no OpenAI key)
-java -Dskip.ai=true -jar target/dotnet-aws-migration-analyzer-1.0.0-jar-with-dependencies.jar samples/TestEcommerceApp/schema.sql samples/TestEcommerceApp/ --query-store 'jdbc:sqlserver://localhost:1433;databaseName=TestApp;user=sa;password=YourPassword;trustServerCertificate=true'
+# Test with Query Store integration (secure file-based approach, no OpenAI key)
+java -Dskip.ai=true -jar target/dotnet-aws-migration-analyzer-1.0.0-jar-with-dependencies.jar samples/TestEcommerceApp/schema.sql samples/TestEcommerceApp/ --query-store-file query-store-export.json
 
 # Run with real AI recommendations
 export OPENAI_API_KEY=sk-...
 java -jar target/dotnet-aws-migration-analyzer-1.0.0-jar-with-dependencies.jar samples/TestEcommerceApp/schema.sql samples/TestEcommerceApp/
 
-# Run with AI + Query Store for complete analysis
+# Run with AI + Query Store for complete analysis (secure approach)
 export OPENAI_API_KEY=sk-...
-export ADEN_CONNECTION_STRING='jdbc:sqlserver://localhost:1433;databaseName=TestApp;user=sa;password=YourPassword;trustServerCertificate=true'
-java -jar target/dotnet-aws-migration-analyzer-1.0.0-jar-with-dependencies.jar samples/TestEcommerceApp/schema.sql samples/TestEcommerceApp/ --query-store "$ADEN_CONNECTION_STRING"
+java -jar target/dotnet-aws-migration-analyzer-1.0.0-jar-with-dependencies.jar samples/TestEcommerceApp/schema.sql samples/TestEcommerceApp/ --query-store-file query-store-export.json
 
 # Use aggressive profile for small applications
 java -Dskip.ai=true -jar target/dotnet-aws-migration-analyzer-1.0.0-jar-with-dependencies.jar samples/TestEcommerceApp/schema.sql samples/TestEcommerceApp/ --profile startup-aggressive
@@ -166,7 +169,7 @@ Options:
   --api-key           OpenAI API key (or set OPENAI_API_KEY env var)
   --target            AWS target: dynamodb|documentdb|neptune|all (default: all)
   --complexity        Include only: low|medium|high|all (default: all)
-  --query-store       SQL Server connection string for Query Store analysis
+  --query-store-file  JSON file exported from Query Store (secure alternative)
   --profile           Migration profile: default|aggressive|startup-aggressive|discovery
   --verbose, -v       Enable verbose output
   --help              Show help information
@@ -176,7 +179,12 @@ Options:
 
 ### Environment Variables
 - `OPENAI_API_KEY` - OpenAI API key for AI recommendations
-- `ADEN_CONNECTION_STRING` - SQL Server connection string (alternative to --query-store)
+
+### Query Store Export Process
+1. Run T-SQL export script: `scripts/export-query-store.sql`
+2. Save JSON output to file (e.g., `query-store-export.json`)
+3. Use with analyzer: `--query-store-file query-store-export.json`
+4. Optional: Use PowerShell automation: `scripts/Setup-QueryStoreExport.ps1`
 
 ---
 
