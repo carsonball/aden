@@ -69,11 +69,15 @@ DECLARE @JsonOutput NVARCHAR(MAX)
 
 SET @JsonOutput = (
     SELECT 
-        @DatabaseName as database_name,
-        @ExportTimestamp as export_timestamp,
-        @SQLServerVersion as sql_server_version,
-        @QueryStoreEnabled as query_store_enabled,
-        @TotalQueries as total_queries,
+        (
+            SELECT 
+                @DatabaseName as database_name,
+                @ExportTimestamp as export_timestamp,
+                @SQLServerVersion as sql_server_version,
+                @QueryStoreEnabled as query_store_enabled,
+                @TotalQueries as total_queries
+            FOR JSON PATH, WITHOUT_ARRAY_WRAPPER
+        ) as export_metadata,
         (
             SELECT TOP (@MaxQueries)
                 CAST(q.query_id AS NVARCHAR(50)) as query_id,

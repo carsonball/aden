@@ -9,6 +9,7 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 import { spawn, ChildProcess } from 'child_process';
 import * as sql from 'mssql';
+import { resolve, isAbsolute } from 'path';
 
 class AdenDevMcpServer {
   private server: Server;
@@ -26,6 +27,26 @@ class AdenDevMcpServer {
     this.setupTools();
   }
 
+  private resolvePath(filepath: string, workingDir?: string): string {
+    // If already absolute, return as is
+    if (isAbsolute(filepath)) {
+      return filepath;
+    }
+    // Use provided working directory, or current working directory
+    const baseDir = workingDir || process.cwd();
+    const resolved = resolve(baseDir, filepath);
+    
+    // If the file doesn't exist and we're in aden-dev-mcp, try the parent directory
+    if (!existsSync(resolved) && process.cwd().includes('aden-dev-mcp') && !workingDir) {
+      const parentResolved = resolve(process.cwd(), '..', filepath);
+      if (existsSync(parentResolved)) {
+        return parentResolved;
+      }
+    }
+    
+    return resolved;
+  }
+
   private setupTools() {
     // Tool for reading and validating JSON files
     this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
@@ -39,7 +60,9 @@ class AdenDevMcpServer {
           return await this.executeJava(
             args?.classpath as string, 
             args?.mainClass as string, 
-            args?.args as string[] || []
+            args?.args as string[] || [],
+            args?.systemProperties as Record<string, string> || {},
+            args?.workingDirectory as string
           );
         case 'read_sql_file':
           return await this.readSqlFile(args?.filepath as string);
@@ -93,6 +116,16 @@ class AdenDevMcpServer {
                   items: { type: 'string' }, 
                   description: 'Command line arguments',
                   default: []
+                },
+                systemProperties: {
+                  type: 'object',
+                  description: 'System properties (-D flags)',
+                  additionalProperties: { type: 'string' },
+                  default: {}
+                },
+                workingDirectory: { 
+                  type: 'string', 
+                  description: 'Working directory path (e.g., "C:/Users/carso/dev/aden")'
                 }
               },
               required: ['classpath', 'mainClass']
@@ -171,26 +204,27 @@ class AdenDevMcpServer {
 
   private async readJsonFile(filepath: string): Promise<CallToolResult> {
     try {
-      if (!existsSync(filepath)) {
+      const resolvedPath = this.resolvePath(filepath);
+      if (!existsSync(resolvedPath)) {
         return {
           content: [
             {
               type: 'text',
-              text: `❌ File not found: ${filepath}`
+              text: `❌ File not found: ${filepath} (resolved to: ${resolvedPath})`
             }
           ],
           isError: true
         };
       }
 
-      const content = readFileSync(filepath, 'utf8');
+      const content = readFileSync(resolvedPath, 'utf8');
       const parsed = JSON.parse(content);
       
       return {
         content: [
           {
             type: 'text',
-            text: `✅ Valid JSON file loaded\nFile: ${filepath}\nSize: ${content.length} characters\nKeys: ${Object.keys(parsed).join(', ')}`
+            text: `✅ Valid JSON file loaded\nFile: ${resolvedPath}\nSize: ${content.length} characters\nKeys: ${Object.keys(parsed).join(', ')}`
           }
         ],
         isError: false
@@ -209,11 +243,38 @@ class AdenDevMcpServer {
     }
   }
 
-  private async executeJava(classpath: string, mainClass: string, args: string[] = []): Promise<CallToolResult> {
+  private async executeJava(
+    classpath: string, 
+    mainClass: string, 
+    args: string[] = [],
+    systemProperties: Record<string, string> = {},
+    workingDirectory?: string
+  ): Promise<CallToolResult> {
     return new Promise((resolve) => {
-      const javaArgs = ['-cp', classpath, mainClass, ...args];
+      // Use provided working directory or current working directory
+      const cwd = workingDirectory || process.cwd();
+      
+      // Resolve classpath relative to working directory
+      const resolvedClasspath = this.resolvePath(classpath, cwd);
+      
+      // Build system properties flags
+      const sysPropFlags = Object.entries(systemProperties)
+        .map(([key, value]) => `-D${key}=${value}`);
+      
+      // Resolve file paths in args (for .sql, .json files, etc.)
+      const resolvedArgs = args.map(arg => {
+        // Check if arg looks like a file path (contains extension)
+        if (arg.includes('.') && !arg.startsWith('-')) {
+          return this.resolvePath(arg, cwd);
+        }
+        return arg;
+      });
+      
+      // Build full command: java -Dprop=value -cp classpath MainClass args
+      const javaArgs = [...sysPropFlags, '-cp', resolvedClasspath, mainClass, ...resolvedArgs];
+      
       const childProcess: ChildProcess = spawn('java', javaArgs, { 
-        cwd: process.cwd() // This 'process' is the global Node.js process
+        cwd: cwd
       });
       
       let stdout = '';
@@ -235,10 +296,11 @@ class AdenDevMcpServer {
               type: 'text',
               text: `🔧 Java Execution Complete\n` +
                     `Command: java ${javaArgs.join(' ')}\n` +
+                    `Working Directory: ${cwd}\n` +
                     `Exit Code: ${code} ${success ? '✅' : '❌'}\n\n` +
                     `📤 STDOUT:\n${stdout || '(no output)'}\n\n` +
                     `⚠️  STDERR:\n${stderr || '(no errors)'}`
-            }
+          }
           ],
           isError: !success
         });
@@ -260,20 +322,21 @@ class AdenDevMcpServer {
 
   private async readSqlFile(filepath: string): Promise<CallToolResult> {
     try {
-      if (!existsSync(filepath)) {
+      const resolvedPath = this.resolvePath(filepath);
+      if (!existsSync(resolvedPath)) {
         return {
-          content: [{ type: 'text', text: `❌ SQL file not found: ${filepath}` }],
+          content: [{ type: 'text', text: `❌ SQL file not found: ${filepath} (resolved to: ${resolvedPath})` }],
           isError: true
         };
       }
   
-      const content = readFileSync(filepath, 'utf8');
+      const content = readFileSync(resolvedPath, 'utf8');
       
       return {
         content: [
           {
             type: 'text',
-            text: `📜 SQL Script: ${filepath}\n` +
+            text: `📜 SQL Script: ${resolvedPath}\n` +
                   `Size: ${content.length} characters\n` +
                   `Lines: ${content.split('\n').length}\n\n` +
                   `Content:\n${'='.repeat(50)}\n${content}\n${'='.repeat(50)}`
@@ -292,14 +355,15 @@ class AdenDevMcpServer {
   
   private async writeFile(filepath: string, content: string): Promise<CallToolResult> {
     try {
-      writeFileSync(filepath, content, 'utf8');
+      const resolvedPath = this.resolvePath(filepath);
+      writeFileSync(resolvedPath, content, 'utf8');
       
       return {
         content: [
           {
             type: 'text',
             text: `✅ File written successfully\n` +
-                  `Path: ${filepath}\n` +
+                  `Path: ${resolvedPath}\n` +
                   `Size: ${content.length} characters\n` +
                   `Lines: ${content.split('\n').length}`
           }
