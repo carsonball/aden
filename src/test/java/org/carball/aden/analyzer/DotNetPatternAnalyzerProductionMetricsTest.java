@@ -1,6 +1,5 @@
 package org.carball.aden.analyzer;
 
-import org.carball.aden.config.MigrationThresholds;
 import org.carball.aden.model.analysis.AnalysisResult;
 import org.carball.aden.model.analysis.DenormalizationCandidate;
 import org.carball.aden.model.analysis.EntityUsageProfile;
@@ -27,13 +26,7 @@ public class DotNetPatternAnalyzerProductionMetricsTest {
 
     @BeforeEach
     void setUp() {
-        MigrationThresholds thresholds = MigrationThresholds.builder()
-                .highFrequencyThreshold(50)
-                .mediumFrequencyThreshold(20)
-                .productionCoAccessThreshold(500)
-                .highProductionExecutionThreshold(1000)
-                .build();
-        analyzer = new DotNetPatternAnalyzer(thresholds);
+        analyzer = new DotNetPatternAnalyzer();
 
         // Create test schema
         schema = new DatabaseSchema();

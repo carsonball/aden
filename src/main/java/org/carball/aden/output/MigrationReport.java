@@ -76,6 +76,11 @@ public class MigrationReport {
 
         // Migration Candidates
         md.append("## Migration Candidates\n\n");
+        
+        if (analysisResult.getDenormalizationCandidates().isEmpty()) {
+            md.append("**No entities met the criteria for NoSQL migration recommendations.**\n\n");
+        }
+        
         for (DenormalizationCandidate candidate : analysisResult.getDenormalizationCandidates()) {
             md.append("### ").append(candidate.getPrimaryEntity()).append("\n\n");
             md.append("- **Complexity:** ").append(candidate.getComplexity()).append("\n");
@@ -94,9 +99,7 @@ public class MigrationReport {
                     .append(" → ").append(rec.getTargetService().getDisplayName()).append("\n\n");
 
             md.append("#### Migration Details\n\n");
-            md.append("- **Table/Collection Name:** `").append(rec.getTableName()).append("`\n");
-            md.append("- **Estimated Cost Saving:** ").append(rec.getEstimatedCostSaving()).append("\n");
-            md.append("- **Migration Effort:** ").append(rec.getMigrationEffort()).append("\n\n");
+            md.append("- **Table/Collection Name:** `").append(rec.getTableName()).append("`\n\n");
 
             if (rec.getPartitionKey() != null) {
                 md.append("#### Key Design\n\n");
@@ -238,52 +241,22 @@ public class MigrationReport {
         // Risk assessment
         report.setRiskAssessment(generateRiskAssessment());
 
-        // Cost analysis
-        report.setCostAnalysis(generateCostAnalysis());
-
         return report;
     }
 
     private String generateExecutiveSummary() {
-        long totalSavings = calculateTotalSavings();
         int lowComplexityCount = (int) analysisResult.getDenormalizationCandidates().stream()
                 .filter(c -> c.getComplexity() == MigrationComplexity.LOW)
                 .count();
 
         return String.format(
-                "Your .NET Framework application analysis identified **%d entities** suitable for NoSQL migration, " +
-                        "with potential cost savings of **%s%%**. The analysis found **%d high-priority** (low complexity) " +
-                        "migrations that can be completed in 2-4 weeks each. The most common pattern identified was " +
-                        "eager loading of related entities, which maps well to NoSQL document structures.",
+                "Your .NET Framework application analysis identified **%d entities** suitable for NoSQL migration. " +
+                        "The analysis found **%d high-priority** (low complexity) migrations. " +
+                        "The most common pattern identified was eager loading of related entities, " +
+                        "which maps well to NoSQL document structures.",
                 analysisResult.getDenormalizationCandidates().size(),
-                totalSavings,
                 lowComplexityCount
         );
-    }
-
-    private long calculateTotalSavings() {
-        // Extract percentage from recommendation strings and average them
-        return (long) recommendations.stream()
-                .map(NoSQLRecommendation::getEstimatedCostSaving)
-                .map(this::extractPercentage)
-                .filter(pct -> pct > 0)
-                .mapToLong(Long::valueOf)
-                .average()
-                .orElse(50.0);
-    }
-
-    private long extractPercentage(String costSaving) {
-        try {
-            // Extract first number from strings like "65% reduction" or "40-60% reduction"
-            String numbers = costSaving.replaceAll("[^0-9]", " ");
-            String[] parts = numbers.trim().split("\\s+");
-            if (parts.length > 0) {
-                return Long.parseLong(parts[0]);
-            }
-        } catch (Exception e) {
-            log.warn("Could not extract percentage from: {}", costSaving);
-        }
-        return 0;
     }
 
     private int calculateAverageIncludeDepth(EntityUsageProfile profile) {
@@ -330,26 +303,6 @@ public class MigrationReport {
         return risk;
     }
 
-    private CostAnalysis generateCostAnalysis() {
-        CostAnalysis cost = new CostAnalysis();
-
-        // Estimate current SQL Server costs (simplified)
-        int entityCount = analysisResult.getUsageProfiles().size();
-        long estimatedMonthlySQL = 1000 + (entityCount * 250L); // Base + per-entity
-        cost.setCurrentSqlServerCost("$" + estimatedMonthlySQL + "/month");
-
-        // Estimate AWS costs based on recommendations
-        long estimatedAWS = (long)(estimatedMonthlySQL * 0.35); // 65% savings average
-        cost.setProjectedAwsCost("$" + estimatedAWS + "/month");
-
-        // Calculate total savings
-        long yearlySavings = (estimatedMonthlySQL - estimatedAWS) * 12;
-        cost.setTotalSavings("$" + yearlySavings + "/year");
-
-        cost.setAssumptions("Based on current usage patterns, AWS on-demand pricing, and typical enterprise SQL Server licensing");
-
-        return cost;
-    }
 
     // Inner classes for JSON structure
     @lombok.Data
@@ -357,7 +310,6 @@ public class MigrationReport {
         private AnalysisMetadata analysisMetadata;
         private List<MigrationCandidate> migrationCandidates;
         private RiskAssessment riskAssessment;
-        private CostAnalysis costAnalysis;
     }
 
     @lombok.Data
@@ -399,13 +351,5 @@ public class MigrationReport {
     private static class PerformanceImpact {
         private String entity;
         private String issue;
-    }
-
-    @lombok.Data
-    private static class CostAnalysis {
-        private String currentSqlServerCost;
-        private String projectedAwsCost;
-        private String totalSavings;
-        private String assumptions;
     }
 }

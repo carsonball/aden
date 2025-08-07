@@ -1,6 +1,5 @@
 package org.carball.aden.analyzer;
 
-import org.carball.aden.config.MigrationThresholds;
 import org.carball.aden.model.analysis.*;
 import org.carball.aden.model.entity.*;
 import org.carball.aden.model.query.QueryPattern;
@@ -22,8 +21,7 @@ public class PatternAnalysisTest {
 
     @BeforeEach
     public void setUp() {
-        MigrationThresholds thresholds = MigrationThresholds.defaults();
-        analyzer = new DotNetPatternAnalyzer(thresholds);
+        analyzer = new DotNetPatternAnalyzer();
     }
 
     @Test

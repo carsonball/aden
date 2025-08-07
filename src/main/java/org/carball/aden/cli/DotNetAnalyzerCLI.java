@@ -3,9 +3,10 @@ package org.carball.aden.cli;
 import lombok.extern.slf4j.Slf4j;
 import org.carball.aden.analyzer.DotNetAnalyzer;
 import org.carball.aden.config.*;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import org.carball.aden.model.analysis.AnalysisResult;
 import org.carball.aden.model.analysis.NoSQLTarget;
-import org.carball.aden.model.query.QueryPattern;
 import org.carball.aden.model.query.QueryStoreQuery;
 import org.carball.aden.model.query.QueryStoreAnalysis;
 import org.carball.aden.model.query.QualifiedMetrics;
@@ -14,6 +15,7 @@ import org.carball.aden.output.MigrationReport;
 import org.carball.aden.parser.QueryStoreAnalyzer;
 import org.carball.aden.parser.QueryStoreFileConnector;
 
+import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -36,13 +38,7 @@ public class DotNetAnalyzerCLI {
         System.out.printf((BANNER) + "%n", VERSION);
 
         if (args.length < 2 || isHelpRequested(args)) {
-            if (Arrays.asList(args).contains("--help-profiles")) {
-                System.out.println(MigrationProfile.getProfileHelp());
-            } else if (Arrays.asList(args).contains("--help-thresholds")) {
-                System.out.println(ConfigurationLoader.getThresholdHelp());
-            } else {
-                printUsage();
-            }
+            printUsage();
             System.exit(args.length < 2 ? 1 : 0);
         }
 
@@ -60,15 +56,12 @@ public class DotNetAnalyzerCLI {
             } else {
                 System.out.println("   Output: " + config.getOutputFile());
             }
-            if (config.getMigrationProfile() != null) {
-                System.out.println("   Migration profile: " + config.getMigrationProfile());
-            }
             if (queryStoreFile != null) {
                 System.out.println("   Query Store: enabled (from export file)");
             }
             System.out.println();
 
-            DotNetAnalyzer analyzer = new DotNetAnalyzer(config, args);
+            DotNetAnalyzer analyzer = new DotNetAnalyzer(config);
 
             // Step 1: Analyze Query Store first if export file provided
             QueryStoreAnalysis productionMetrics = null;
@@ -109,13 +102,9 @@ public class DotNetAnalyzerCLI {
                 System.out.println("   Output file: " + config.getOutputFile());
             }
             
-            // Provide profile suggestions if no candidates found
+            // Provide suggestions if no candidates found
             if (recommendations.isEmpty()) {
-                System.out.println("\n💡 No migration candidates found. This might be due to threshold settings.");
-                System.out.println("   Consider using a different profile:");
-                System.out.println("   - For small applications: --profile startup-aggressive");
-                System.out.println("   - For discovery: --profile discovery");
-                System.out.println("   - Or use --help-thresholds for manual tuning");
+                System.out.println("\n💡 No migration candidates found.");
             }
 
         } catch (IllegalArgumentException e) {
@@ -137,9 +126,7 @@ public class DotNetAnalyzerCLI {
     private static boolean isHelpRequested(String[] args) {
         return Arrays.asList(args).contains("--help") ||
                 Arrays.asList(args).contains("-h") ||
-                Arrays.asList(args).contains("help") ||
-                Arrays.asList(args).contains("--help-profiles") ||
-                Arrays.asList(args).contains("--help-thresholds");
+                Arrays.asList(args).contains("help");
     }
 
     private static void printUsage() {
@@ -156,36 +143,22 @@ public class DotNetAnalyzerCLI {
         System.out.println("  --target            AWS target: dynamodb|documentdb|neptune|all (default: all)");
         System.out.println("  --complexity        Include only: low|medium|high|all (default: all)");
         System.out.println("  --query-store-file  JSON file exported from Query Store (secure alternative)");
+        System.out.println("  --thresholds        YAML file with custom analysis thresholds (optional)");
         System.out.println("  --verbose, -v       Enable verbose output");
         System.out.println("  --help, -h          Show this help message");
-        System.out.println();
-        System.out.println("Migration Configuration:");
-        System.out.println("  --profile           Migration profile: " + MigrationProfile.getAvailableProfiles());
-        System.out.println("  --help-profiles     Show detailed profile information");
-        System.out.println("  --help-thresholds   Show threshold configuration options");
-        System.out.println();
-        System.out.println("Threshold Overrides (see --help-thresholds for full list):");
-        System.out.println("  --thresholds.high-frequency <num>     High frequency threshold");
-        System.out.println("  --thresholds.medium-frequency <num>   Medium frequency threshold");
-        System.out.println("  --thresholds.read-write-ratio <num>   Read/write ratio threshold");
         System.out.println();
         System.out.println("Examples:");
         System.out.println("  # Basic analysis");
         System.out.println("  java -jar dotnet-analyzer.jar schema.sql ./src/MyApp.Data/");
         System.out.println();
-        System.out.println("  # Use startup profile for small applications");
-        System.out.println("  java -jar dotnet-analyzer.jar schema.sql ./src/ --profile startup-aggressive");
-        System.out.println();
-        System.out.println("  # Override specific thresholds");
-        System.out.println("  java -jar dotnet-analyzer.jar schema.sql ./src/ --thresholds.high-frequency 10");
-        System.out.println();
         System.out.println("  # Include Query Store production metrics (secure file-based approach)");
         System.out.println("  java -jar dotnet-analyzer.jar schema.sql ./src/ --query-store-file query-store-export.json");
         System.out.println();
+        System.out.println("  # Use custom analysis thresholds");
+        System.out.println("  java -jar dotnet-analyzer.jar schema.sql ./src/ --thresholds my-thresholds.yml");
+        System.out.println();
         System.out.println("Environment Variables:");
-        System.out.println("  OPENAI_API_KEY                Your OpenAI API key for AI-powered recommendations");
-        System.out.println("  ADEN_HIGH_FREQUENCY_THRESHOLD  Override high frequency threshold");
-        System.out.println("  ADEN_MEDIUM_FREQUENCY_THRESHOLD Override medium frequency threshold");
+        System.out.println("  OPENAI_API_KEY      Your OpenAI API key for AI-powered recommendations");
         System.out.println();
         System.out.println("For more information, visit: https://github.com/your-org/dotnet-analyzer");
     }
@@ -201,6 +174,11 @@ public class DotNetAnalyzerCLI {
         config.setTargetServices(Arrays.asList(NoSQLTarget.values()));
         config.setComplexityFilter(ComplexityFilter.ALL);
         config.setVerbose(false);
+        
+        // Extract threshold config path and load thresholds
+        String thresholdConfigPath = extractThresholdConfigPath(args);
+        ThresholdConfig thresholds = loadThresholdConfig(thresholdConfigPath);
+        config.setThresholdConfig(thresholds);
 
         // Parse optional arguments
         for (int i = 2; i < args.length; i++) {
@@ -256,12 +234,6 @@ public class DotNetAnalyzerCLI {
                     config.setVerbose(true);
                     break;
 
-                case "--profile":
-                    if (i + 1 >= args.length) {
-                        throw new IllegalArgumentException("Profile name not specified");
-                    }
-                    config.setMigrationProfile(args[++i]);
-                    break;
 
                 case "--query-store-file":
                     if (i + 1 >= args.length) {
@@ -270,22 +242,18 @@ public class DotNetAnalyzerCLI {
                     // Just skip the value here, it will be handled by getQueryStoreFile()
                     i++;
                     break;
-
-                case "--help-profiles":
-                case "--help-thresholds":
-                    // These are handled in the help check above
+                
+                case "--thresholds":
+                case "--threshold-config":
+                    if (i + 1 >= args.length) {
+                        throw new IllegalArgumentException("Threshold config file not specified");
+                    }
+                    // Just skip the value here, it will be handled by DotNetAnalyzer constructor
+                    i++;
                     break;
 
                 default:
-                    // Check if it's a threshold override
-                    if (args[i].startsWith("--thresholds.")) {
-                        // Skip this argument and its value - will be handled by ConfigurationLoader
-                        if (i + 1 < args.length) {
-                            i++; // Skip the value
-                        }
-                    } else {
-                        throw new IllegalArgumentException("Unknown option: " + args[i]);
-                    }
+                    throw new IllegalArgumentException("Unknown option: " + args[i]);
             }
         }
         
@@ -431,10 +399,9 @@ public class DotNetAnalyzerCLI {
         recommendations.stream()
                 .limit(3)
                 .forEach(rec -> {
-                    System.out.printf("%-20s → %-15s %s%n",
+                    System.out.printf("%-20s → %-15s%n",
                             rec.getPrimaryEntity(),
-                            rec.getTargetService().getDisplayName(),
-                            "(" + rec.getEstimatedCostSaving() + ")"
+                            rec.getTargetService().getDisplayName()
                     );
 
                     if (rec.getPartitionKey() != null) {
@@ -453,18 +420,8 @@ public class DotNetAnalyzerCLI {
         }
         
         if (recommendations.isEmpty()) {
-            System.out.println("\n🔧 Configuration Suggestions:");
-            System.out.println("-".repeat(60));
-            
-            int maxFreq = result.getQueryPatterns().stream()
-                    .mapToInt(QueryPattern::getFrequency)
-                    .max()
-                    .orElse(0);
-            
-            System.out.println(MigrationProfile.suggestProfile(
-                    result.getUsageProfiles().size(),
-                    result.getQueryPatterns().size(),
-                    maxFreq));
+            System.out.println("\n💡 No migration candidates found.");
+            System.out.println("See the report for detailed analysis and suggestions.");
         }
     }
     
@@ -526,4 +483,46 @@ public class DotNetAnalyzerCLI {
             throw new IOException("Query Store file analysis failed: " + e.getMessage(), e);
         }
     }
+    
+    /**
+     * Extract threshold config path from command line arguments.
+     */
+    private static String extractThresholdConfigPath(String[] args) {
+        for (int i = 0; i < args.length - 1; i++) {
+            if ("--threshold-config".equals(args[i]) || "--thresholds".equals(args[i])) {
+                return args[i + 1];
+            }
+        }
+        return null;
+    }
+    
+    /**
+     * Load threshold configuration from file or use defaults.
+     */
+    private static ThresholdConfig loadThresholdConfig(String configPath) {
+        if (configPath == null || configPath.trim().isEmpty()) {
+            log.info("No threshold config path provided, using discovery defaults");
+            return ThresholdConfig.createDiscoveryDefaults();
+        }
+        
+        try {
+            ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
+            File configFile = new File(configPath);
+            
+            if (!configFile.exists()) {
+                log.warn("Threshold config file not found: {}, using discovery defaults", configPath);
+                return ThresholdConfig.createDiscoveryDefaults();
+            }
+            
+            ThresholdConfig config = mapper.readValue(configFile, ThresholdConfig.class);
+            log.info("Loaded threshold configuration from: {}", configPath);
+            return config;
+            
+        } catch (IOException e) {
+            log.error("Failed to load threshold config from {}: {}, using discovery defaults", 
+                     configPath, e.getMessage());
+            return ThresholdConfig.createDiscoveryDefaults();
+        }
+    }
+
 }

@@ -12,8 +12,6 @@ public class NoSQLRecommendation {
     private KeyStrategy partitionKey;
     private KeyStrategy sortKey;
     private List<GSIStrategy> globalSecondaryIndexes;
-    private String estimatedCostSaving;
-    private String migrationEffort;
     private String schemaDesign;
     private DesignRationale designRationale;
 }

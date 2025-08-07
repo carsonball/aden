@@ -31,34 +31,20 @@ public class DotNetAnalyzer {
     private DatabaseSchema currentSchema; // Store schema for recommendation generation
 
     public DotNetAnalyzer(DotNetAnalyzerConfig config) {
-        this(config, new String[0]);
-    }
-    
-    public DotNetAnalyzer(DotNetAnalyzerConfig config, String[] args) {
         this.config = config;
+        
+        // Get threshold configuration from config, use defaults if not provided
+        ThresholdConfig thresholdConfig = config.getThresholdConfig() != null ?
+                config.getThresholdConfig() : ThresholdConfig.createDiscoveryDefaults();
+        
         this.schemaParser = new SchemaParser();
         this.efParser = new EFModelParser();
         this.linqAnalyzer = new LinqAnalyzer();
-        
-        // Load migration thresholds
-        MigrationThresholds thresholds = loadMigrationThresholds(config, args);
-        this.patternAnalyzer = new DotNetPatternAnalyzer(thresholds);
+        this.patternAnalyzer = new DotNetPatternAnalyzer(thresholdConfig);
         this.jsonRecommendationEngine = new JsonRecommendationEngine(config.getOpenAiApiKey());
 
         log.info("Initialized DotNetAnalyzer with config: {}", config);
-    }
-    
-    private MigrationThresholds loadMigrationThresholds(DotNetAnalyzerConfig config, String[] args) {
-        ConfigurationLoader loader = new ConfigurationLoader();
-        
-        if (config.getMigrationProfile() != null) {
-            return loader.loadConfigurationWithProfile(
-                config.getMigrationProfile(), 
-                args
-            );
-        } else {
-            return loader.loadConfiguration(args);
-        }
+        log.info("Using thresholds: {}", thresholdConfig.getDescription());
     }
 
     public AnalysisResult analyze() throws IOException {

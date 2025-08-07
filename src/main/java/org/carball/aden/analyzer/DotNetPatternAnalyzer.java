@@ -1,7 +1,7 @@
 package org.carball.aden.analyzer;
 
 import lombok.extern.slf4j.Slf4j;
-import org.carball.aden.config.MigrationThresholds;
+import org.carball.aden.config.ThresholdConfig;
 import org.carball.aden.model.analysis.*;
 import org.carball.aden.model.entity.EntityModel;
 import org.carball.aden.model.entity.NavigationProperty;
@@ -19,11 +19,16 @@ import java.util.stream.Collectors;
 @Slf4j
 public class DotNetPatternAnalyzer {
 
-    private final MigrationThresholds thresholds;
+    private final ThresholdConfig thresholds;
     private Map<String, EntityUsageProfile> profiles; // Instance variable for profile access
-
-    public DotNetPatternAnalyzer(MigrationThresholds thresholds) {
+    
+    public DotNetPatternAnalyzer() {
+        this(ThresholdConfig.createDiscoveryDefaults());
+    }
+    
+    public DotNetPatternAnalyzer(ThresholdConfig thresholds) {
         this.thresholds = thresholds;
+        log.debug("Initialized DotNetPatternAnalyzer with thresholds: {}", thresholds.getDescription());
     }
 
     public AnalysisResult analyzePatterns(List<EntityModel> entities,
@@ -39,15 +44,8 @@ public class DotNetPatternAnalyzer {
                                           Map<String, String> dbSetMapping,
                                           QueryStoreAnalysis productionMetrics) {
 
-        log.info("Analyzing patterns for {} entities and {} query patterns using thresholds: {}",
-                entities.size(), queryPatterns.size(), thresholds.getConfigurationSummary());
-                
-        // Provide configuration suggestions
-        int maxFrequency = queryPatterns.stream()
-                .mapToInt(QueryPattern::getFrequency)
-                .max()
-                .orElse(0);
-        thresholds.suggestAdjustments(entities.size(), queryPatterns.size(), maxFrequency);
+        log.info("Analyzing patterns for {} entities and {} query patterns",
+                entities.size(), queryPatterns.size());
 
         AnalysisResult result = new AnalysisResult();
 
@@ -148,7 +146,7 @@ public class DotNetPatternAnalyzer {
                 String relatedEntity = parts[1];
 
                 // Check if this entity is always loaded with the related one
-                if (pattern.getFrequency() > thresholds.getMediumFrequencyThreshold()) {
+                if (pattern.getFrequency() > thresholds.getAlwaysLoadedTogetherFrequencyThreshold()) {
                     if (!profile.getAlwaysLoadedWithEntities().contains(relatedEntity)) {
                         profile.getAlwaysLoadedWithEntities().add(relatedEntity);
                     }
@@ -380,7 +378,7 @@ public class DotNetPatternAnalyzer {
         // Rules for good denormalization candidates:
         
         // Check production metrics first if available
-        if (profile.hasHighProductionUsage(thresholds.getHighProductionExecutionThreshold())) {
+        if (profile.hasHighProductionUsage(thresholds.getHighProductionUsageThreshold())) {
             log.trace("{} has high production usage: {}",
                     profile.getEntityName(), profile.getProductionExecutionCount());
             return true;
@@ -394,7 +392,7 @@ public class DotNetPatternAnalyzer {
         }
 
         // High frequency eager loading (use combined frequency)
-        if (profile.getTotalAccessFrequency() > thresholds.getHighFrequencyThreshold()) {
+        if (profile.getTotalAccessFrequency() > thresholds.getTotalAccessFrequencyThreshold()) {
             log.trace("{} has high total access frequency: {}",
                     profile.getEntityName(), profile.getTotalAccessFrequency());
             return true;
@@ -408,8 +406,8 @@ public class DotNetPatternAnalyzer {
         }
 
         // Read-heavy patterns (use combined read/write ratio)
-        if (profile.getCombinedReadWriteRatio() > thresholds.getHighReadWriteRatio() &&
-                profile.getReadCount() > thresholds.getMediumFrequencyThreshold()) {
+        if (profile.getCombinedReadWriteRatio() > thresholds.getReadHeavyRatioThreshold() &&
+                profile.getReadCount() > thresholds.getMinReadCountForRatioAnalysis()) {
             log.trace("{} has high combined read/write ratio: {}",
                     profile.getEntityName(), profile.getCombinedReadWriteRatio());
             return true;
@@ -420,7 +418,7 @@ public class DotNetPatternAnalyzer {
                 .filter(p -> p.getQueryType() == QueryType.COMPLEX_EAGER_LOADING)
                 .count();
 
-        if (complexQueries > thresholds.getComplexQueryRequirement()) {
+        if (complexQueries > thresholds.getComplexEagerLoadingFrequencyThreshold()) {
             log.trace("{} has {} complex queries", profile.getEntityName(), complexQueries);
             return true;
         }
@@ -465,7 +463,7 @@ public class DotNetPatternAnalyzer {
             Integer coAccessCount = entry.getValue();
             
             // Include entities that are frequently co-accessed in production
-            if (coAccessCount > thresholds.getProductionCoAccessThreshold()) {
+            if (coAccessCount > thresholds.getRelatedEntityCoAccessThreshold()) {
                 allRelatedEntities.add(coAccessedEntity);
                 log.debug("Adding {} to related entities due to high production co-access count: {}",
                          coAccessedEntity, coAccessCount);
@@ -491,7 +489,7 @@ public class DotNetPatternAnalyzer {
 
         // Factor in circular references
         if (entity.hasCircularReferences()) {
-            complexityScore += (int) (thresholds.getComplexRelationshipPenalty() * 2 * thresholds.getComplexityPenaltyMultiplier());
+            complexityScore += 40;
         }
 
         // Factor in number of always-loaded entities
@@ -537,7 +535,7 @@ public class DotNetPatternAnalyzer {
     private String generateReason(EntityUsageProfile profile) {
         List<String> reasons = new ArrayList<>();
 
-        if (profile.getEagerLoadingCount() > thresholds.getHighFrequencyThreshold()) {
+        if (profile.getEagerLoadingCount() > thresholds.getTotalAccessFrequencyThreshold()) {
             reasons.add("High frequency eager loading (" + profile.getEagerLoadingCount() + " occurrences)");
         }
 
@@ -545,7 +543,7 @@ public class DotNetPatternAnalyzer {
             reasons.add("Always loaded with: " + String.join(", ", profile.getAlwaysLoadedWithEntities()));
         }
 
-        if (profile.getReadToWriteRatio() > thresholds.getHighReadWriteRatio()) {
+        if (profile.getReadToWriteRatio() > thresholds.getReadHeavyRatioThreshold()) {
             reasons.add("Read-heavy access pattern (ratio: " +
                     String.format("%.1f", profile.getReadToWriteRatio()) + ":1)");
         }
@@ -572,7 +570,7 @@ public class DotNetPatternAnalyzer {
             
             // Co-access patterns (max 20 points)
             int coAccessScore = profile.getCoAccessedEntities().values().stream()
-                .mapToInt(count -> count > thresholds.getProductionCoAccessThreshold() ? 5 : 0)
+                .mapToInt(count -> count > thresholds.getCoAccessScoringThreshold() ? 5 : 0)
                 .sum();
             score += Math.min(coAccessScore, 20);
         }
@@ -584,9 +582,9 @@ public class DotNetPatternAnalyzer {
         score += Math.min(profile.getAlwaysLoadedWithEntities().size() * 10, 30);
 
         // Combined read/write ratio (max 20 points)
-        if (profile.getCombinedReadWriteRatio() > thresholds.getHighReadWriteRatio()) {
+        if (profile.getCombinedReadWriteRatio() > thresholds.getReadHeavyRatioThreshold()) {
             score += 20;
-        } else if (profile.getCombinedReadWriteRatio() > thresholds.getHighReadWriteRatio() / 2) {
+        } else if (profile.getCombinedReadWriteRatio() > thresholds.getMediumReadRatioThreshold()) {
             score += 10;
         }
 

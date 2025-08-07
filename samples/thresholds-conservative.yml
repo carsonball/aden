@@ -1,0 +1,60 @@
+# Conservative Threshold Configuration for .NET to AWS NoSQL Migration Analyzer
+# 
+# This configuration uses strict thresholds to identify only the most obvious
+# migration candidates. Ideal for production systems where you want high
+# confidence in recommendations. May miss some valid candidates.
+
+# Query Pattern Analysis Thresholds
+# These control when entities are considered frequently accessed together
+
+# Minimum frequency for entities to be considered "always loaded together"
+# Conservative: 20 (very strong pattern required)
+always_loaded_together_frequency_threshold: 20
+
+# Minimum total access frequency for an entity to be considered a candidate
+# Conservative: 25 (only highly accessed entities)
+total_access_frequency_threshold: 25
+
+# Minimum frequency for medium-priority analysis with related entities
+# Conservative: 10 (significant usage required)
+medium_frequency_threshold: 10
+
+# Minimum count of complex eager loading queries to be considered a candidate
+# Conservative: 5 (multiple complex patterns needed)
+complex_eager_loading_frequency_threshold: 5
+
+# Production Metrics Thresholds
+# These apply when Query Store production data is available
+
+# Minimum execution count to be considered high production usage
+# Conservative: 10000 (significant production volume)
+high_production_usage_threshold: 10000
+
+# Minimum co-access count to indicate strong production relationships
+# Conservative: 1000 (very strong production relationship)
+production_co_access_threshold: 1000
+
+# Minimum co-access count for including entities as related
+# Conservative: 500 (clear production relationship)
+related_entity_co_access_threshold: 500
+
+# Minimum co-access count for scoring bonus points
+# Conservative: 1000 (matches production_co_access_threshold)
+co_access_scoring_threshold: 1000
+
+# Read/Write Ratio Thresholds
+# These identify read-heavy patterns suitable for denormalization
+
+# Minimum read/write ratio to be considered "read-heavy"
+# Conservative: 10.0 (strongly read-dominated)
+read_heavy_ratio_threshold: 10.0
+
+# Medium read/write ratio for scoring
+# Conservative: 5.0 (clearly read-heavy)
+medium_read_ratio_threshold: 5.0
+
+# Entity Analysis Thresholds
+
+# Minimum read count required before analyzing read/write ratios
+# Conservative: 10 (sufficient data for meaningful ratio)
+min_read_count_for_ratio_analysis: 10

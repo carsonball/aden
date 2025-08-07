@@ -15,7 +15,5 @@ public class DotNetAnalyzerConfig {
     private List<NoSQLTarget> targetServices;
     private ComplexityFilter complexityFilter;
     private boolean verbose;
-    
-    // Migration threshold configuration
-    private String migrationProfile;
+    private ThresholdConfig thresholdConfig;
 }

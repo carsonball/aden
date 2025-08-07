@@ -1,17 +1,14 @@
-// MinimalTests.java
 package org.carball.aden;
 
 import org.carball.aden.analyzer.DotNetAnalyzer;
 import org.carball.aden.analyzer.DotNetPatternAnalyzer;
 import org.carball.aden.config.DotNetAnalyzerConfig;
-import org.carball.aden.config.MigrationThresholds;
 import org.carball.aden.model.analysis.AnalysisResult;
 import org.carball.aden.model.analysis.NoSQLTarget;
 import org.carball.aden.model.entity.EntityModel;
 import org.carball.aden.model.entity.NavigationType;
 import org.carball.aden.model.query.QueryPattern;
 import org.carball.aden.model.schema.DatabaseSchema;
-import org.carball.aden.parser.EFModelParser;
 import org.carball.aden.parser.SchemaParser;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -145,8 +142,7 @@ public class MinimalTests {
         );
         pattern.setQueryType(org.carball.aden.model.query.QueryType.EAGER_LOADING);
 
-        MigrationThresholds thresholds = MigrationThresholds.defaults();
-        DotNetPatternAnalyzer analyzer = new DotNetPatternAnalyzer(thresholds);
+        DotNetPatternAnalyzer analyzer = new DotNetPatternAnalyzer();
 
         // When
         AnalysisResult result = analyzer.analyzePatterns(

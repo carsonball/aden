@@ -1,0 +1,60 @@
+# Aggressive Threshold Configuration for .NET to AWS NoSQL Migration Analyzer
+# 
+# This configuration uses more sensitive thresholds to identify more migration
+# candidates. Useful for greenfield projects or when you want to maximize
+# NoSQL adoption. May result in more false positives.
+
+# Query Pattern Analysis Thresholds
+# These control when entities are considered frequently accessed together
+
+# Minimum frequency for entities to be considered "always loaded together"
+# Aggressive: 2 (very low threshold - any repeated pattern)
+always_loaded_together_frequency_threshold: 2
+
+# Minimum total access frequency for an entity to be considered a candidate
+# Aggressive: 3 (catches entities with minimal usage)
+total_access_frequency_threshold: 3
+
+# Minimum frequency for medium-priority analysis with related entities
+# Aggressive: 1 (any occurrence triggers analysis)
+medium_frequency_threshold: 1
+
+# Minimum count of complex eager loading queries to be considered a candidate
+# Aggressive: 0 (any complex query triggers candidacy)
+complex_eager_loading_frequency_threshold: 0
+
+# Production Metrics Thresholds
+# These apply when Query Store production data is available
+
+# Minimum execution count to be considered high production usage
+# Aggressive: 10 (very low production threshold)
+high_production_usage_threshold: 10
+
+# Minimum co-access count to indicate strong production relationships
+# Aggressive: 5 (minimal co-access required)
+production_co_access_threshold: 5
+
+# Minimum co-access count for including entities as related
+# Aggressive: 2 (very sensitive relationship detection)
+related_entity_co_access_threshold: 2
+
+# Minimum co-access count for scoring bonus points
+# Aggressive: 5 (matches production_co_access_threshold)
+co_access_scoring_threshold: 5
+
+# Read/Write Ratio Thresholds
+# These identify read-heavy patterns suitable for denormalization
+
+# Minimum read/write ratio to be considered "read-heavy"
+# Aggressive: 1.5 (slight read bias is enough)
+read_heavy_ratio_threshold: 1.5
+
+# Medium read/write ratio for scoring
+# Aggressive: 1.2 (nearly balanced is acceptable)
+medium_read_ratio_threshold: 1.2
+
+# Entity Analysis Thresholds
+
+# Minimum read count required before analyzing read/write ratios
+# Aggressive: 1 (analyze everything with reads)
+min_read_count_for_ratio_analysis: 1

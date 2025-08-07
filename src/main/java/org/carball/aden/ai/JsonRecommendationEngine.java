@@ -33,7 +33,6 @@ public class JsonRecommendationEngine {
         - Legacy .NET Framework and Entity Framework patterns
         - AWS NoSQL services (DynamoDB, DocumentDB, Neptune)
         - Data modeling for cloud-native applications
-        - Cost optimization strategies
         - Single table design patterns for DynamoDB
         
         You must respond with valid JSON that matches the specified schema exactly.
@@ -373,16 +372,6 @@ public class JsonRecommendationEngine {
                   "indexUsed": null
                 }
               ],
-              "estimatedCostSaving": {
-                "percentageSaving": 60,
-                "explanation": "Reduced licensing and operational costs",
-                "monthlyEstimateUSD": 2500.0
-              },
-              "migrationEffort": {
-                "estimatedWeeks": 3,
-                "complexity": "MEDIUM",
-                "mainChallenges": ["Data transformation", "Query pattern changes"]
-              },
               "singleTableDesign": {
                 "isRecommended": true,
                 "sharedTableName": "ApplicationData",
@@ -405,9 +394,7 @@ public class JsonRecommendationEngine {
           ],
           "overallStrategy": {
             "primaryApproach": "Single-table design for related entities",
-            "keyConsiderations": ["High read volume", "Strong entity relationships"],
-            "totalEstimatedSaving": 60,
-            "totalMigrationWeeks": 8
+            "keyConsiderations": ["High read volume", "Strong entity relationships"]
           }
         }
         """;
@@ -550,21 +537,6 @@ public class JsonRecommendationEngine {
                 );
             }
             
-            // Cost and effort
-            if (entityRec.getCostEstimate() != null) {
-                recommendation.setEstimatedCostSaving(
-                    entityRec.getCostEstimate().getPercentageSaving() + "% savings - " + 
-                    entityRec.getCostEstimate().getExplanation()
-                );
-            }
-            
-            if (entityRec.getMigrationEffort() != null) {
-                recommendation.setMigrationEffort(
-                    entityRec.getMigrationEffort().getEstimatedWeeks() + " weeks (" +
-                    entityRec.getMigrationEffort().getComplexity() + " complexity)"
-                );
-            }
-            
             // Schema design - build from structured data
             recommendation.setSchemaDesign(buildSchemaDesignText(entityRec));
             
@@ -687,8 +659,6 @@ public class JsonRecommendationEngine {
                 .build());
         recommendation.setGlobalSecondaryIndexes(gsis);
 
-        recommendation.setEstimatedCostSaving("40-60% reduction vs SQL Server");
-        recommendation.setMigrationEffort("2-4 weeks");
         recommendation.setSchemaDesign("Fallback recommendation - AI service unavailable");
 
         return recommendation;
