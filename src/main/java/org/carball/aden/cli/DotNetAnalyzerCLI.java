@@ -2,7 +2,9 @@ package org.carball.aden.cli;
 
 import lombok.extern.slf4j.Slf4j;
 import org.carball.aden.analyzer.DotNetAnalyzer;
-import org.carball.aden.config.*;
+import org.carball.aden.config.DotNetAnalyzerConfig;
+import org.carball.aden.config.OutputFormat;
+import org.carball.aden.config.ThresholdConfig;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import org.carball.aden.model.analysis.AnalysisResult;
@@ -141,7 +143,6 @@ public class DotNetAnalyzerCLI {
         System.out.println("  --format, -f        Output format: json|markdown|both (default: json)");
         System.out.println("  --api-key           OpenAI API key (or set OPENAI_API_KEY env var)");
         System.out.println("  --target            AWS target: dynamodb|documentdb|neptune|all (default: all)");
-        System.out.println("  --complexity        Include only: low|medium|high|all (default: all)");
         System.out.println("  --query-store-file  JSON file exported from Query Store (secure alternative)");
         System.out.println("  --thresholds        YAML file with custom analysis thresholds (optional)");
         System.out.println("  --verbose, -v       Enable verbose output");
@@ -172,7 +173,6 @@ public class DotNetAnalyzerCLI {
         config.setOutputFile("recommendations.json");
         config.setOutputFormat(OutputFormat.JSON);
         config.setTargetServices(Arrays.asList(NoSQLTarget.values()));
-        config.setComplexityFilter(ComplexityFilter.ALL);
         config.setVerbose(false);
         
         // Extract threshold config path and load thresholds
@@ -218,16 +218,6 @@ public class DotNetAnalyzerCLI {
                     config.setTargetServices(parseTargetServices(args[++i]));
                     break;
 
-                case "--complexity":
-                    if (i + 1 >= args.length) {
-                        throw new IllegalArgumentException("Complexity filter not specified");
-                    }
-                    try {
-                        config.setComplexityFilter(ComplexityFilter.valueOf(args[++i].toUpperCase()));
-                    } catch (IllegalArgumentException e) {
-                        throw new IllegalArgumentException("Invalid complexity filter. Use: low, medium, high, or all");
-                    }
-                    break;
 
                 case "--verbose":
                 case "-v":
@@ -413,11 +403,6 @@ public class DotNetAnalyzerCLI {
                     System.out.println();
                 });
 
-        // Overall complexity score
-        if (result.getComplexityAnalysis() != null) {
-            System.out.println("Overall migration complexity score: " +
-                    result.getComplexityAnalysis().getOverallComplexity());
-        }
         
         if (recommendations.isEmpty()) {
             System.out.println("\n💡 No migration candidates found.");

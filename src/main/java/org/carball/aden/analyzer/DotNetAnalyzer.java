@@ -2,9 +2,9 @@ package org.carball.aden.analyzer;
 
 import lombok.extern.slf4j.Slf4j;
 import org.carball.aden.ai.JsonRecommendationEngine;
-import org.carball.aden.config.*;
+import org.carball.aden.config.DotNetAnalyzerConfig;
+import org.carball.aden.config.ThresholdConfig;
 import org.carball.aden.model.analysis.AnalysisResult;
-import org.carball.aden.model.analysis.DenormalizationCandidate;
 import org.carball.aden.model.entity.EntityModel;
 import org.carball.aden.model.query.QueryPattern;
 import org.carball.aden.model.query.QueryStoreAnalysis;
@@ -85,12 +85,7 @@ public class DotNetAnalyzer {
         AnalysisResult result = patternAnalyzer.analyzePatterns(entities, queryPatterns, schema, dbSetMapping, productionMetrics);
         result.setQueryPatterns(queryPatterns); // Store query patterns in result
 
-        // Step 5: Apply filters
-        result.setDenormalizationCandidates(
-                filterCandidates(result.getDenormalizationCandidates())
-        );
-
-        log.info("Analysis complete. Identified {} denormalization candidates after filtering",
+        log.info("Analysis complete. Identified {} denormalization candidates",
                 result.getDenormalizationCandidates().size());
 
         return result;
@@ -131,15 +126,4 @@ public class DotNetAnalyzer {
         return recommendations;
     }
 
-    private List<DenormalizationCandidate> filterCandidates(List<DenormalizationCandidate> candidates) {
-        if (config.getComplexityFilter() == ComplexityFilter.ALL) {
-            return candidates;
-        }
-
-        return candidates.stream()
-                .filter(candidate ->
-                        candidate.getComplexity().toString().equalsIgnoreCase(
-                                config.getComplexityFilter().toString()))
-                .collect(Collectors.toList());
-    }
 }

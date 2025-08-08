@@ -163,21 +163,6 @@ public class MigrationReport {
                 md.append("| ").append(type).append(" | ").append(count).append(" |\n"));
         md.append("\n");
 
-        // Complexity Analysis
-        if (analysisResult.getComplexityAnalysis() != null) {
-            md.append("## Complexity Analysis\n\n");
-            md.append("**Overall Complexity Score:** ").append(analysisResult.getComplexityAnalysis().getOverallComplexity()).append("\n\n");
-            md.append("**Reason:** ").append(analysisResult.getComplexityAnalysis().getComplexityReason()).append("\n\n");
-
-            md.append("### Entity Complexity Scores\n\n");
-            md.append("| Entity | Complexity Score |\n");
-            md.append("|--------|------------------|\n");
-            analysisResult.getComplexityAnalysis().getEntityComplexityScores().entrySet().stream()
-                    .sorted(Map.Entry.<String, Integer>comparingByValue().reversed())
-                    .forEach(entry ->
-                            md.append("| ").append(entry.getKey()).append(" | ").append(entry.getValue()).append(" |\n"));
-            md.append("\n");
-        }
 
         // Next Steps
         md.append("## Next Steps\n\n");

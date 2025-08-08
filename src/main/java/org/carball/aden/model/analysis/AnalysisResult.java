@@ -10,6 +10,5 @@ import java.util.Map;
 public class AnalysisResult {
     private List<DenormalizationCandidate> denormalizationCandidates;
     private Map<String, EntityUsageProfile> usageProfiles = new HashMap<>();
-    private ComplexityAnalysis complexityAnalysis;
     private List<QueryPattern> queryPatterns;
 }

@@ -14,7 +14,6 @@ import org.carball.aden.model.schema.RelationshipType;
 import org.carball.aden.model.schema.Table;
 
 import java.util.*;
-import java.util.stream.Collectors;
 
 @Slf4j
 public class DotNetPatternAnalyzer {
@@ -59,12 +58,8 @@ public class DotNetPatternAnalyzer {
         List<DenormalizationCandidate> candidates = identifyDenormalizationCandidates(
                 usageProfiles, schema);
 
-        // Perform complexity analysis
-        ComplexityAnalysis complexityAnalysis = performComplexityAnalysis(entities, queryPatterns, schema, dbSetMapping);
-
         result.setDenormalizationCandidates(candidates);
         result.setUsageProfiles(usageProfiles);
-        result.setComplexityAnalysis(complexityAnalysis);
         result.setQueryPatterns(queryPatterns);
 
         log.info("Analysis complete. Found {} denormalization candidates", candidates.size());
@@ -657,86 +652,5 @@ public class DotNetPatternAnalyzer {
                 profile.getAlwaysLoadedWithEntities().size() > 3;
     }
 
-    private ComplexityAnalysis performComplexityAnalysis(List<EntityModel> entities,
-                                                         List<QueryPattern> queryPatterns,
-                                                         DatabaseSchema schema,
-                                                         Map<String, String> dbSetMapping) {
-        Map<String, Integer> entityComplexityScores = new HashMap<>();
-        int totalComplexity = 0;
 
-        for (EntityModel entity : entities) {
-            int score = calculateEntityComplexity(entity, queryPatterns, schema, dbSetMapping);
-            entityComplexityScores.put(entity.getClassName(), score);
-            totalComplexity += score;
-        }
-
-        String complexityReason = generateOverallComplexityReason(
-                entityComplexityScores, queryPatterns, schema);
-
-        return ComplexityAnalysis.builder()
-                .entityComplexityScores(entityComplexityScores)
-                .overallComplexity(totalComplexity)
-                .complexityReason(complexityReason)
-                .build();
-    }
-
-    private int calculateEntityComplexity(EntityModel entity,
-                                          List<QueryPattern> queryPatterns,
-                                          DatabaseSchema schema,
-                                          Map<String, String> dbSetMapping) {
-        int complexity = 0;
-
-        // Navigation properties
-        complexity += entity.getNavigationProperties().size() * 2;
-
-        // Circular references
-        if (entity.hasCircularReferences()) {
-            complexity += 20;
-        }
-
-        // Query patterns involving this entity
-        long entityQueries = queryPatterns.stream()
-                .filter(p -> extractEntityName(p.getTargetEntity(), dbSetMapping).equals(entity.getClassName()))
-                .count();
-        complexity += (int) entityQueries;
-
-        // Database relationships
-        long relationships = schema.getRelationships().stream()
-                .filter(r -> r.getFromTable().equals(entity.getClassName()) ||
-                        r.getToTable().equals(entity.getClassName()))
-                .count();
-        complexity += (int) (relationships * 3);
-
-        return complexity;
-    }
-
-    private String generateOverallComplexityReason(Map<String, Integer> scores,
-                                                   List<QueryPattern> queryPatterns,
-                                                   DatabaseSchema schema) {
-        List<String> reasons = new ArrayList<>();
-
-        // Find most complex entities
-        List<Map.Entry<String, Integer>> sortedScores = scores.entrySet().stream()
-                .sorted(Map.Entry.<String, Integer>comparingByValue().reversed())
-                .limit(3)
-                .toList();
-
-        if (!sortedScores.isEmpty()) {
-            reasons.add("Most complex entities: " +
-                    sortedScores.stream()
-                            .map(e -> e.getKey() + " (" + e.getValue() + ")")
-                            .collect(Collectors.joining(", ")));
-        }
-
-        // Overall statistics
-        long totalRelationships = schema.getRelationships().size();
-        long complexQueries = queryPatterns.stream()
-                .filter(p -> p.getQueryType() == QueryType.COMPLEX_EAGER_LOADING)
-                .count();
-
-        reasons.add("Total relationships: " + totalRelationships);
-        reasons.add("Complex query patterns: " + complexQueries);
-
-        return String.join("; ", reasons);
-    }
 }

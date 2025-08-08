@@ -13,7 +13,6 @@ public class DotNetAnalyzerConfig {
     private OutputFormat outputFormat;
     private String openAiApiKey;
     private List<NoSQLTarget> targetServices;
-    private ComplexityFilter complexityFilter;
     private boolean verbose;
     private ThresholdConfig thresholdConfig;
 }
