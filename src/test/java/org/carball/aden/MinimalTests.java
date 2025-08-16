@@ -4,7 +4,6 @@ import org.carball.aden.analyzer.DotNetAnalyzer;
 import org.carball.aden.analyzer.DotNetPatternAnalyzer;
 import org.carball.aden.config.DotNetAnalyzerConfig;
 import org.carball.aden.model.analysis.AnalysisResult;
-import org.carball.aden.model.analysis.NoSQLTarget;
 import org.carball.aden.model.entity.EntityModel;
 import org.carball.aden.model.entity.NavigationType;
 import org.carball.aden.model.query.QueryPattern;
@@ -15,7 +14,6 @@ import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -23,7 +21,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 public class MinimalTests {
 
-    // 1. SchemaParserTest - basic table parsing (COMPLETE)
+    // SchemaParserTest - basic table parsing (COMPLETE)
     @Test
     public void shouldParseSimpleTable() {
         // Given
@@ -39,7 +37,7 @@ public class MinimalTests {
         assertThat(schema.getTables().get(0).getColumns()).hasSize(2);
     }
 
-    // 2. Basic integration test (COMPLETE)
+    // Basic integration test (COMPLETE)
     @Test
     public void shouldAnalyzeSimpleSchema(@TempDir Path tempDir) throws Exception {
         // Given - Create test files
@@ -73,7 +71,7 @@ public class MinimalTests {
         String customerService = """
             public class CustomerService {
                 private readonly AppDbContext _context;
-                
+            
                 public Customer GetCustomerWithOrders(int id) {
                     return _context.Customers
                         .Include(c => c.Orders)
@@ -100,7 +98,6 @@ public class MinimalTests {
         config.setSchemaFile(schemaFile);
         config.setSourceDirectory(tempDir);
         config.setOpenAiApiKey("test-key"); // Won't actually call API
-        config.setTargetServices(Arrays.asList(NoSQLTarget.values()));
 
         DotNetAnalyzer analyzer = new DotNetAnalyzer(config);
         AnalysisResult result = analyzer.analyze();
@@ -118,7 +115,7 @@ public class MinimalTests {
         );
     }
 
-    // 3. Bonus: Quick pattern analyzer test
+    // Quick pattern analyzer test
     @Test
     public void shouldIdentifyDenormalizationCandidate() {
         // Given

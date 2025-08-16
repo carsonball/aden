@@ -55,10 +55,7 @@ samples/TestEcommerceApp/packages/
 # Logs
 *.log
 
-# Aden
-recommendations.md
-recommendations.json
-query_store_analysis.json
+# Claude
 /.claude/*
 
 # Node.js dependencies
@@ -74,13 +71,6 @@ query_store_analysis.json
 # IDE/Editor files
 .vscode/
 
-
-# OS generated files
-.DS_Store
-Thumbs.db
-
-# Logs
-*.log
 npm-debug.log*
 
 # Runtime data

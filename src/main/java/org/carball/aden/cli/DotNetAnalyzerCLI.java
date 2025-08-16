@@ -8,7 +8,6 @@ import org.carball.aden.config.ThresholdConfig;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import org.carball.aden.model.analysis.AnalysisResult;
-import org.carball.aden.model.analysis.NoSQLTarget;
 import org.carball.aden.model.query.QueryStoreQuery;
 import org.carball.aden.model.query.QueryStoreAnalysis;
 import org.carball.aden.model.query.QualifiedMetrics;
@@ -26,7 +25,6 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.List;
-import java.util.stream.Collectors;
 
 @Slf4j
 public class DotNetAnalyzerCLI {
@@ -163,7 +161,6 @@ public class DotNetAnalyzerCLI {
         System.out.println("  --output, -o        Output file for recommendations (default: recommendations.json)");
         System.out.println("  --format, -f        Output format: json|markdown|both (default: json)");
         System.out.println("  --api-key           OpenAI API key (or set OPENAI_API_KEY env var)");
-        System.out.println("  --target            AWS target: dynamodb|documentdb|neptune|all (default: all)");
         System.out.println("  --query-store-file  JSON file exported from Query Store (secure alternative)");
         System.out.println("  --thresholds        YAML file with custom analysis thresholds (optional)");
         System.out.println("  --terraform         Generate Terraform infrastructure scripts");
@@ -197,7 +194,6 @@ public class DotNetAnalyzerCLI {
         // Set defaults
         config.setOutputFile("recommendations.json");
         config.setOutputFormat(OutputFormat.JSON);
-        config.setTargetServices(Arrays.asList(NoSQLTarget.values()));
         config.setVerbose(false);
         
         // Extract threshold config path and load thresholds
@@ -235,14 +231,6 @@ public class DotNetAnalyzerCLI {
                     }
                     config.setOpenAiApiKey(args[++i]);
                     break;
-
-                case "--target":
-                    if (i + 1 >= args.length) {
-                        throw new IllegalArgumentException("Target service not specified");
-                    }
-                    config.setTargetServices(parseTargetServices(args[++i]));
-                    break;
-
 
                 case "--verbose":
                 case "-v":
@@ -307,23 +295,6 @@ public class DotNetAnalyzerCLI {
             }
         }
         return filename;
-    }
-
-    private static List<NoSQLTarget> parseTargetServices(String targets) {
-        if (targets.equalsIgnoreCase("all")) {
-            return Arrays.asList(NoSQLTarget.values());
-        }
-
-        return Arrays.stream(targets.split(","))
-                .map(String::trim)
-                .map(target -> {
-                    try {
-                        return NoSQLTarget.valueOf(target.toUpperCase());
-                    } catch (IllegalArgumentException e) {
-                        throw new IllegalArgumentException("Invalid target service: " + target);
-                    }
-                })
-                .collect(Collectors.toList());
     }
 
     private static void validateConfig(DotNetAnalyzerConfig config) {

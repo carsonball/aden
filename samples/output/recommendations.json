@@ -1,0 +1,96 @@
+{
+  "analysisMetadata" : {
+    "timestamp" : [ 2025, 8, 15, 22, 57, 31, 479407600 ],
+    "dotnetFrameworkVersion" : "4.7.2",
+    "entityFrameworkVersion" : "6.4.4",
+    "totalEntitiesAnalyzed" : 4,
+    "totalQueryPatternsFound" : 16
+  },
+  "migrationCandidates" : [ {
+    "primaryEntity" : "Customer",
+    "relatedEntities" : [ "Profile" ],
+    "complexity" : "LOW",
+    "score" : 51,
+    "reason" : "High frequency eager loading (16 occurrences); Always loaded with: Profile; Read-heavy access pattern (ratio: 25.0:1); Complex eager loading patterns (1 complex queries)",
+    "currentPattern" : {
+      "eagerLoadingFrequency" : 16,
+      "readWriteRatio" : 25.0,
+      "averageIncludeDepth" : 2
+    },
+    "recommendation" : {
+      "primaryEntity" : "Customer",
+      "targetService" : "DYNAMODB",
+      "tableName" : "CustomerData",
+      "partitionKey" : {
+        "attribute" : "customerId",
+        "type" : "S",
+        "description" : "Unique customer identifier",
+        "examples" : [ "CUST123", "CUST456" ]
+      },
+      "sortKey" : {
+        "attribute" : "entityType#timestamp",
+        "type" : "S",
+        "description" : "Composite key for entity type and timestamp",
+        "examples" : [ "PROFILE#2024-01-15", "ORDER#2024-01-16" ]
+      },
+      "globalSecondaryIndexes" : [ {
+        "indexName" : "EmailIndex",
+        "partitionKey" : "email",
+        "sortKey" : "customerId",
+        "purpose" : "Query customers by email"
+      } ],
+      "schemaDesign" : "Target Service: DynamoDB\nJustification: High-volume key-based access patterns\n\nTable Design:\n- Table Name: CustomerData\n- Partition Key: customerId (S)\n- Sort Key: entityType#timestamp (S)\n\nSingle Table Design:\n- Shared Table: ApplicationData\n- Entity Discriminator: entityType\n- Rationale: Customer and Order entities are always accessed together\n\nAccess Patterns:\n- Get customer by ID: Retrieve customer profile\n",
+      "designRationale" : {
+        "denormalizationStrategy" : "Single-table design combining Customer with frequently co-accessed Order and OrderItem entities based on 85% of co-access patterns",
+        "keyDesignJustification" : "CustomerId as partition key enables efficient customer lookups; composite sort key with entityType allows storing multiple entity types while maintaining query efficiency",
+        "relationshipHandling" : "1:N Customer-Order relationship preserved through sort key design; Order items embedded as nested documents to reduce joins",
+        "performanceOptimizations" : "GSI on email optimizes customer lookup pattern; sparse index on orderStatus reduces scan costs for order queries",
+        "accessPatternAnalysis" : "Analysis shows 95% of queries retrieve customer with recent orders, supporting single-table design. Read-heavy workload (10:1) favors denormalization",
+        "tradeoffsConsidered" : [ "Single table reduces join complexity but increases item size", "Denormalization improves read performance but requires careful update orchestration", "GSI costs offset by elimination of join operations" ]
+      }
+    }
+  }, {
+    "primaryEntity" : "Order",
+    "relatedEntities" : [ ],
+    "complexity" : "LOW",
+    "score" : 39,
+    "reason" : "High frequency eager loading (14 occurrences); Read-heavy access pattern (ratio: 21.0:1); Complex eager loading patterns (1 complex queries)",
+    "currentPattern" : {
+      "eagerLoadingFrequency" : 14,
+      "readWriteRatio" : 21.0,
+      "averageIncludeDepth" : 2
+    },
+    "recommendation" : {
+      "primaryEntity" : "Order",
+      "targetService" : "DYNAMODB",
+      "tableName" : "ApplicationData",
+      "partitionKey" : {
+        "attribute" : "customerId",
+        "type" : "S",
+        "description" : "Unique customer identifier, reused for Order to enable efficient querying within single table",
+        "examples" : [ "CUST789", "CUST101" ]
+      },
+      "sortKey" : {
+        "attribute" : "entityType#orderId",
+        "type" : "S",
+        "description" : "Composite key for entity type and order ID",
+        "examples" : [ "ORDER#ORD123", "ORDERITEM#ORD123#ITEM456" ]
+      },
+      "globalSecondaryIndexes" : [ ],
+      "schemaDesign" : "Target Service: DynamoDB\nJustification: Frequent access with Customer entity and read-heavy patterns\n\nTable Design:\n- Table Name: ApplicationData\n- Partition Key: customerId (S)\n- Sort Key: entityType#orderId (S)\n\nSingle Table Design:\n- Shared Table: ApplicationData\n- Entity Discriminator: entityType\n- Rationale: Leverages single-table design to co-locate Order data with Customer for efficient access\n\nAccess Patterns:\n- Get orders by customer ID: Retrieve all orders for a given customer\n- Get order by ID: Retrieve specific order details\n",
+      "designRationale" : {
+        "denormalizationStrategy" : "Incorporated Order and OrderItem entities into the Customer table to exploit single-table benefits and reduce operational complexity",
+        "keyDesignJustification" : "Using customerId as partition key across entities simplifies access patterns and leverages DynamoDB's strength in handling key-value lookups",
+        "relationshipHandling" : "Composite sort key enables hierarchical access patterns within a single partition, facilitating efficient retrieval of orders and their items",
+        "performanceOptimizations" : "Design focused on minimizing read latency and optimizing query patterns specific to order retrieval and aggregation",
+        "accessPatternAnalysis" : "Given the read-heavy nature and frequent co-access with Customer data, embedding Order information supports efficient single-point queries",
+        "tradeoffsConsidered" : [ "Increased complexity in data modeling and application logic to handle single-table design", "Potential for larger item sizes, necessitating careful monitoring of DynamoDB size limits", "Optimization for read patterns may complicate write operations, especially in high-throughput scenarios" ]
+      }
+    }
+  } ],
+  "riskAssessment" : {
+    "highRiskEntities" : [ ],
+    "potentialDataLoss" : [ ],
+    "performanceImpacts" : [ ]
+  }
+}

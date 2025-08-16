@@ -1,9 +1,7 @@
 package org.carball.aden.config;
 
 import lombok.Data;
-import org.carball.aden.model.analysis.NoSQLTarget;
 import java.nio.file.Path;
-import java.util.List;
 
 @Data
 public class DotNetAnalyzerConfig {
@@ -12,7 +10,6 @@ public class DotNetAnalyzerConfig {
     private String outputFile;
     private OutputFormat outputFormat;
     private String openAiApiKey;
-    private List<NoSQLTarget> targetServices;
     private boolean verbose;
     private ThresholdConfig thresholdConfig;
 }

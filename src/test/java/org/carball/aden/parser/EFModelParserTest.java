@@ -293,7 +293,7 @@ public class EFModelParserTest {
             public class EmptyDbContext : DbContext
             {
                 public EmptyDbContext() : base("connectionString") { }
-                
+            
                 protected override void OnModelCreating(DbModelBuilder modelBuilder)
                 {
                     base.OnModelCreating(modelBuilder);

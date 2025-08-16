@@ -17,7 +17,6 @@ import org.carball.aden.parser.SchemaParser;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 @Slf4j
 public class DotNetAnalyzer {
@@ -112,14 +111,6 @@ public class DotNetAnalyzer {
         
         List<NoSQLRecommendation> recommendations = jsonRecommendationEngine.generateRecommendations(
             result, schemaToUse, patternsToUse, productionMetrics);
-
-        // Apply target service filter
-        if (!config.getTargetServices().isEmpty() &&
-                config.getTargetServices().size() < 3) {
-            recommendations = recommendations.stream()
-                    .filter(rec -> config.getTargetServices().contains(rec.getTargetService()))
-                    .collect(Collectors.toList());
-        }
 
         log.info("Generated {} recommendations", recommendations.size());
 

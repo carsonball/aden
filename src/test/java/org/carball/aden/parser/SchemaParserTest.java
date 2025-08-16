@@ -128,7 +128,7 @@ public class SchemaParserTest {
                 CustomerId int NOT NULL,
                 OrderDate datetime NOT NULL,
                 TotalAmount decimal(10,2) NOT NULL,
-                CONSTRAINT FK_Order_Customer FOREIGN KEY (CustomerId) 
+                CONSTRAINT FK_Order_Customer FOREIGN KEY (CustomerId)
                     REFERENCES Customer(Id)
             );
             """;
