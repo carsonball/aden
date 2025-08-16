@@ -96,8 +96,9 @@ public class DynamoDBTerraformGenerator {
         
         StringBuilder attributes = new StringBuilder();
         for (String attr : attributesNeeded) {
-            attributes.append(String.format(TerraformTemplate.ATTRIBUTE_TEMPLATE, 
+            attributes.append(String.format(TerraformTemplate.ATTRIBUTE_TEMPLATE,
                     attr, attributeTypes.get(attr)));
+            attributes.append("\n");
         }
         
         return attributes.toString();

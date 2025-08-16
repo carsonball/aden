@@ -16,6 +16,8 @@ import org.carball.aden.model.recommendation.NoSQLRecommendation;
 import org.carball.aden.output.MigrationReport;
 import org.carball.aden.parser.QueryStoreAnalyzer;
 import org.carball.aden.parser.QueryStoreFileConnector;
+import org.carball.aden.terraform.DynamoDBTerraformGenerator;
+import org.carball.aden.terraform.model.TerraformOutput;
 
 import java.io.File;
 import java.io.IOException;
@@ -85,7 +87,15 @@ public class DotNetAnalyzerCLI {
                 analyzer.generateRecommendations(result);
             System.out.println("✓");
 
-            // Step 3: Output results
+            // Step 4: Generate Terraform scripts if requested
+            boolean terraformFlag = hasTerraformFlag(args);
+            if (terraformFlag) {
+                System.out.print("🏗️ Generating Terraform infrastructure scripts... ");
+                generateTerraformScripts(recommendations, config);
+                System.out.println("✓");
+            }
+            
+            // Step 5: Output results
             System.out.print("📝 Writing results... ");
             outputResults(result, recommendations, config);
             System.out.println("✓");
@@ -100,8 +110,19 @@ public class DotNetAnalyzerCLI {
                 System.out.println("   Output files:");
                 System.out.println("     - " + baseFileName + ".json");
                 System.out.println("     - " + baseFileName + ".md");
+                if (terraformFlag && !recommendations.isEmpty()) {
+                    System.out.println("     - main.tf");
+                    System.out.println("     - variables.tf");
+                    System.out.println("     - outputs.tf");
+                }
             } else {
                 System.out.println("   Output file: " + config.getOutputFile());
+                if (terraformFlag && !recommendations.isEmpty()) {
+                    System.out.println("   Terraform files:");
+                    System.out.println("     - main.tf");
+                    System.out.println("     - variables.tf");
+                    System.out.println("     - outputs.tf");
+                }
             }
             
             // Provide suggestions if no candidates found
@@ -145,6 +166,7 @@ public class DotNetAnalyzerCLI {
         System.out.println("  --target            AWS target: dynamodb|documentdb|neptune|all (default: all)");
         System.out.println("  --query-store-file  JSON file exported from Query Store (secure alternative)");
         System.out.println("  --thresholds        YAML file with custom analysis thresholds (optional)");
+        System.out.println("  --terraform         Generate Terraform infrastructure scripts");
         System.out.println("  --verbose, -v       Enable verbose output");
         System.out.println("  --help, -h          Show this help message");
         System.out.println();
@@ -157,6 +179,9 @@ public class DotNetAnalyzerCLI {
         System.out.println();
         System.out.println("  # Use custom analysis thresholds");
         System.out.println("  java -jar dotnet-analyzer.jar schema.sql ./src/ --thresholds my-thresholds.yml");
+        System.out.println();
+        System.out.println("  # Generate Terraform infrastructure scripts");
+        System.out.println("  java -jar dotnet-analyzer.jar schema.sql ./src/ --terraform");
         System.out.println();
         System.out.println("Environment Variables:");
         System.out.println("  OPENAI_API_KEY      Your OpenAI API key for AI-powered recommendations");
@@ -240,6 +265,10 @@ public class DotNetAnalyzerCLI {
                     }
                     // Just skip the value here, it will be handled by DotNetAnalyzer constructor
                     i++;
+                    break;
+                    
+                case "--terraform":
+                    // Boolean flag, no value to consume
                     break;
 
                 default:
@@ -507,6 +536,66 @@ public class DotNetAnalyzerCLI {
             log.error("Failed to load threshold config from {}: {}, using discovery defaults", 
                      configPath, e.getMessage());
             return ThresholdConfig.createDiscoveryDefaults();
+        }
+    }
+    
+    private static boolean hasTerraformFlag(String[] args) {
+        return Arrays.asList(args).contains("--terraform");
+    }
+    
+    private static void generateTerraformScripts(List<NoSQLRecommendation> recommendations, 
+                                                 DotNetAnalyzerConfig config) throws IOException {
+        DynamoDBTerraformGenerator generator = new DynamoDBTerraformGenerator();
+        
+        // Extract project name from source directory for naming
+        String projectName = config.getSourceDirectory().getFileName().toString();
+        
+        // Generate Terraform files
+        TerraformOutput terraformOutput = generator.generateTerraform(recommendations, projectName);
+        
+        // Determine output directory (same as report location)
+        Path outputDir = Paths.get(config.getOutputFile()).getParent();
+        if (outputDir == null) {
+            outputDir = Paths.get(".");
+        }
+        
+        // Write Terraform files
+        if (!terraformOutput.getMainTf().isEmpty()) {
+            Path mainTfPath = outputDir.resolve("main.tf");
+            Files.writeString(mainTfPath, terraformOutput.getMainTf());
+        }
+        
+        if (!terraformOutput.getVariablesTf().isEmpty()) {
+            Path variablesTfPath = outputDir.resolve("variables.tf");
+            Files.writeString(variablesTfPath, terraformOutput.getVariablesTf());
+        }
+        
+        if (!terraformOutput.getOutputsTf().isEmpty()) {
+            Path outputsTfPath = outputDir.resolve("outputs.tf");
+            Files.writeString(outputsTfPath, terraformOutput.getOutputsTf());
+        }
+        
+        // Format Terraform files if terraform is available
+        formatTerraformFiles(outputDir);
+    }
+    
+    private static void formatTerraformFiles(Path outputDir) {
+        try {
+            ProcessBuilder pb = new ProcessBuilder("terraform", "fmt");
+            pb.directory(outputDir.toFile());
+            pb.redirectErrorStream(true);
+            
+            Process process = pb.start();
+            int exitCode = process.waitFor();
+            
+            if (exitCode == 0) {
+                log.debug("Terraform files formatted successfully");
+            } else {
+                log.debug("terraform fmt exited with code {}, files may not be formatted", exitCode);
+            }
+        } catch (Exception e) {
+            // Silently ignore if terraform is not available or fmt fails
+            log.debug("Could not format Terraform files (terraform may not be available): {}", e.getMessage());
         }
     }
 
