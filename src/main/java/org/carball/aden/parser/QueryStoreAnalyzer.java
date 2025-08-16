@@ -290,14 +290,13 @@ public class QueryStoreAnalyzer {
         
         try {
             String exportFilePath = args[0];
-            QueryStoreFileConnector connector = new QueryStoreFileConnector(exportFilePath);
             QueryStoreAnalyzer analyzer = new QueryStoreAnalyzer();
             
             System.out.println("=== Query Store Analysis (File-Based) ===");
             System.out.println("Export file: " + exportFilePath);
             
             // Load and verify export file
-            connector.loadData();
+            QueryStoreFileConnector connector = new QueryStoreFileConnector(exportFilePath);
             if (!connector.isQueryStoreEnabled()) {
                 System.out.println("WARNING: Query Store was not enabled when data was exported");
             }
@@ -308,11 +307,11 @@ public class QueryStoreAnalyzer {
             
             // Get metadata
             QueryStoreFileConnector.ExportMetadata metadata = connector.getExportMetadata();
-            System.out.println("Database: " + metadata.getDatabaseName());
-            System.out.println("Export timestamp: " + metadata.getExportTimestamp());
+            System.out.println("Database: " + metadata.databaseName());
+            System.out.println("Export timestamp: " + metadata.exportTimestamp());
             
             // Analyze
-            QueryStoreAnalysis analysis = analyzer.analyze(queries, metadata.getDatabaseName());
+            QueryStoreAnalysis analysis = analyzer.analyze(queries, metadata.databaseName());
             
             System.out.printf("✓ Analysis completed with %d queries%n", analysis.getTotalQueriesAnalyzed());
             

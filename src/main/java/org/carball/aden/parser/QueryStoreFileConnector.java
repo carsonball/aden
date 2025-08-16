@@ -4,61 +4,38 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.carball.aden.model.query.QueryStoreQuery;
 
-import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 
 /**
  * Reads Query Store metrics from exported JSON files instead of connecting directly to the database.
- * This secure approach eliminates the need for customers to provide database connection strings
- * while maintaining full analytical capabilities.
  */
 public class QueryStoreFileConnector {
+
+    private final JsonNode exportData;
     
-    private final String filePath;
-    private final ObjectMapper objectMapper;
-    private JsonNode exportData;
-    private boolean dataLoaded = false;
-    
-    public QueryStoreFileConnector(String filePath) {
-        this.filePath = filePath;
-        this.objectMapper = new ObjectMapper();
-    }
-    
-    /**
-     * Loads and validates the exported Query Store data from the JSON file.
-     * Should be called before other operations.
-     */
-    public void loadData() throws IOException {
+    public QueryStoreFileConnector(String filePath) throws IOException {
+        ObjectMapper objectMapper = new ObjectMapper();
         Path path = Paths.get(filePath);
         if (!Files.exists(path)) {
             throw new IOException("Query Store export file not found: " + filePath);
         }
-        
+
         String content = Files.readString(path);
         exportData = objectMapper.readTree(content);
-        
+
         validateExportFormat();
-        dataLoaded = true;
     }
     
     /**
      * Extracts all queries from the exported Query Store data.
      */
-    public List<QueryStoreQuery> getAllQueries() throws IOException {
-        if (!dataLoaded) {
-            try {
-                loadData();
-            } catch (IOException e) {
-                throw new IOException("Failed to load Query Store export file: " + e.getMessage(), e);
-            }
-        }
-        
+    public List<QueryStoreQuery> getAllQueries()
+{
         List<QueryStoreQuery> results = new ArrayList<>();
         JsonNode queries = exportData.get("queries");
         
@@ -75,15 +52,8 @@ public class QueryStoreFileConnector {
     /**
      * Tests if Query Store was enabled when the data was exported.
      */
-    public boolean isQueryStoreEnabled() throws IOException {
-        if (!dataLoaded) {
-            try {
-                loadData();
-            } catch (IOException e) {
-                throw new IOException("Failed to load Query Store export file: " + e.getMessage(), e);
-            }
-        }
-        
+    public boolean isQueryStoreEnabled()
+{
         JsonNode metadata = exportData.get("export_metadata");
         if (metadata == null) {
             return false;
@@ -96,15 +66,8 @@ public class QueryStoreFileConnector {
     /**
      * Gets total number of queries from the exported data.
      */
-    public int getQueryStoreQueryCount() throws IOException {
-        if (!dataLoaded) {
-            try {
-                loadData();
-            } catch (IOException e) {
-                throw new IOException("Failed to load Query Store export file: " + e.getMessage(), e);
-            }
-        }
-        
+    public int getQueryStoreQueryCount()
+{
         JsonNode metadata = exportData.get("export_metadata");
         if (metadata != null) {
             JsonNode totalQueries = metadata.get("total_queries");
@@ -122,14 +85,6 @@ public class QueryStoreFileConnector {
      * Gets export metadata including database name, export timestamp, and SQL Server version.
      */
     public ExportMetadata getExportMetadata() throws IOException {
-        if (!dataLoaded) {
-            try {
-                loadData();
-            } catch (IOException e) {
-                throw new IOException("Failed to load Query Store export file: " + e.getMessage(), e);
-            }
-        }
-        
         JsonNode metadata = exportData.get("export_metadata");
         if (metadata == null) {
             throw new IOException("Export metadata not found in file");
@@ -144,26 +99,26 @@ public class QueryStoreFileConnector {
         );
     }
     
-    private void validateExportFormat() throws IOException {
+    private void validateExportFormat() {
         if (exportData == null) {
-            throw new IOException("Invalid JSON format in export file");
+            throw new IllegalStateException("Invalid JSON format in export file");
         }
         
         JsonNode metadata = exportData.get("export_metadata");
         if (metadata == null) {
-            throw new IOException("Missing export_metadata section in export file");
+            throw new IllegalStateException("Missing export_metadata section in export file");
         }
         
         JsonNode queries = exportData.get("queries");
         if (queries == null || !queries.isArray()) {
-            throw new IOException("Missing or invalid queries section in export file");
+            throw new IllegalStateException("Missing or invalid queries section in export file");
         }
         
         // Validate required metadata fields
         String[] requiredFields = {"database_name", "export_timestamp", "query_store_enabled"};
         for (String field : requiredFields) {
             if (!metadata.has(field)) {
-                throw new IOException("Missing required metadata field: " + field);
+                throw new IllegalStateException("Missing required metadata field: " + field);
             }
         }
     }
@@ -178,38 +133,19 @@ public class QueryStoreFileConnector {
         
         return new QueryStoreQuery(queryId, sqlText, executionCount, avgDurationMs, avgCpuMs, avgLogicalReads);
     }
-    
-    /**
-     * Metadata about the Query Store export.
-     */
-    public static class ExportMetadata {
-        private final String databaseName;
-        private final String exportTimestamp;
-        private final String sqlServerVersion;
-        private final boolean queryStoreEnabled;
-        private final int totalQueries;
-        
-        public ExportMetadata(String databaseName, String exportTimestamp, String sqlServerVersion, 
-                             boolean queryStoreEnabled, int totalQueries) {
-            this.databaseName = databaseName;
-            this.exportTimestamp = exportTimestamp;
-            this.sqlServerVersion = sqlServerVersion;
-            this.queryStoreEnabled = queryStoreEnabled;
-            this.totalQueries = totalQueries;
-        }
-        
-        public String getDatabaseName() { return databaseName; }
-        public String getExportTimestamp() { return exportTimestamp; }
-        public String getSqlServerVersion() { return sqlServerVersion; }
-        public boolean isQueryStoreEnabled() { return queryStoreEnabled; }
-        public int getTotalQueries() { return totalQueries; }
-        
+
+        /**
+         * Metadata about the Query Store export.
+         */
+        public record ExportMetadata(String databaseName, String exportTimestamp, String sqlServerVersion,
+                                     boolean queryStoreEnabled, int totalQueries) {
+
         @Override
-        public String toString() {
-            return String.format("ExportMetadata{database='%s', timestamp='%s', version='%s', enabled=%s, queries=%d}",
-                               databaseName, exportTimestamp, sqlServerVersion, queryStoreEnabled, totalQueries);
+            public String toString() {
+                return String.format("ExportMetadata{database='%s', timestamp='%s', version='%s', enabled=%s, queries=%d}",
+                        databaseName, exportTimestamp, sqlServerVersion, queryStoreEnabled, totalQueries);
+            }
         }
-    }
     
     /**
      * Main method for standalone testing of QueryStoreFileConnector.
@@ -224,12 +160,9 @@ public class QueryStoreFileConnector {
             String filePath = args[0];
             System.out.println("Loading Query Store export from: " + filePath);
             QueryStoreFileConnector connector = new QueryStoreFileConnector(filePath);
+            System.out.println("✓ Export file loaded and validated");
             
             System.out.println("=== Query Store File Connector Test ===");
-            
-            // Load and validate data
-            connector.loadData();
-            System.out.println("✓ Export file loaded and validated");
             
             // Get export metadata
             ExportMetadata metadata = connector.getExportMetadata();
@@ -273,8 +206,7 @@ public class QueryStoreFileConnector {
             System.out.println("\n✓ Query Store export data successfully processed");
             
         } catch (Exception e) {
-            System.err.println("ERROR: " + e.getMessage());
-            e.printStackTrace();
+            System.err.println("ERROR: " + e);
         }
     }
 }

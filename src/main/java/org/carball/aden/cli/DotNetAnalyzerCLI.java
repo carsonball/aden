@@ -161,7 +161,7 @@ public class DotNetAnalyzerCLI {
         System.out.println("  --output, -o        Output file for recommendations (default: recommendations.json)");
         System.out.println("  --format, -f        Output format: json|markdown|both (default: json)");
         System.out.println("  --api-key           OpenAI API key (or set OPENAI_API_KEY env var)");
-        System.out.println("  --query-store-file  JSON file exported from Query Store (secure alternative)");
+        System.out.println("  --query-store-file  JSON file exported from Query Store (optional)");
         System.out.println("  --thresholds        YAML file with custom analysis thresholds (optional)");
         System.out.println("  --terraform         Generate Terraform infrastructure scripts");
         System.out.println("  --verbose, -v       Enable verbose output");
@@ -182,8 +182,6 @@ public class DotNetAnalyzerCLI {
         System.out.println();
         System.out.println("Environment Variables:");
         System.out.println("  OPENAI_API_KEY      Your OpenAI API key for AI-powered recommendations");
-        System.out.println();
-        System.out.println("For more information, visit: https://github.com/your-org/dotnet-analyzer");
     }
 
     private static DotNetAnalyzerConfig parseArgs(String[] args) {
@@ -251,7 +249,7 @@ public class DotNetAnalyzerCLI {
                     if (i + 1 >= args.length) {
                         throw new IllegalArgumentException("Threshold config file not specified");
                     }
-                    // Just skip the value here, it will be handled by DotNetAnalyzer constructor
+                    // Just skip the value here, it was already handled by extractThresholdConfigPath()
                     i++;
                     break;
                     
@@ -431,11 +429,10 @@ public class DotNetAnalyzerCLI {
             
             // Load data from file
             QueryStoreFileConnector connector = new QueryStoreFileConnector(queryStoreFile);
-            connector.loadData();
             
             // Extract database name from metadata
             QueryStoreFileConnector.ExportMetadata metadata = connector.getExportMetadata();
-            String databaseName = metadata.getDatabaseName();
+            String databaseName = metadata.databaseName();
             
             // Get queries from file
             List<QueryStoreQuery> queries = connector.getAllQueries();
@@ -453,7 +450,7 @@ public class DotNetAnalyzerCLI {
             if (config.isVerbose()) {
                 System.out.println("     - Loaded " + queries.size() + " queries from export file");
                 System.out.println("     - Database: " + databaseName);
-                System.out.println("     - Export timestamp: " + metadata.getExportTimestamp());
+                System.out.println("     - Export timestamp: " + metadata.exportTimestamp());
                 QualifiedMetrics metrics = analysisResult.getQualifiedMetrics();
                 if (metrics != null) {
                     long totalExec = metrics.getTotalExecutions();

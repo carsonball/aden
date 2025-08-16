@@ -99,11 +99,8 @@ class QueryStoreFileConnectorTest {
 
     @Test
     void shouldLoadValidExportFile() throws IOException {
-        // Given
+        // Given & When
         QueryStoreFileConnector connector = new QueryStoreFileConnector(validExportFile.toString());
-
-        // When
-        connector.loadData();
 
         // Then - should not throw exception
         assertThat(connector).isNotNull();
@@ -118,11 +115,11 @@ class QueryStoreFileConnectorTest {
         QueryStoreFileConnector.ExportMetadata metadata = connector.getExportMetadata();
 
         // Then
-        assertThat(metadata.getDatabaseName()).isEqualTo("TestEcommerceApp");
-        assertThat(metadata.getExportTimestamp()).isEqualTo("2025-08-02T10:30:00Z");
-        assertThat(metadata.getSqlServerVersion()).isEqualTo("Microsoft SQL Server 2019");
-        assertThat(metadata.isQueryStoreEnabled()).isTrue();
-        assertThat(metadata.getTotalQueries()).isEqualTo(2);
+        assertThat(metadata.databaseName()).isEqualTo("TestEcommerceApp");
+        assertThat(metadata.exportTimestamp()).isEqualTo("2025-08-02T10:30:00Z");
+        assertThat(metadata.sqlServerVersion()).isEqualTo("Microsoft SQL Server 2019");
+        assertThat(metadata.queryStoreEnabled()).isTrue();
+        assertThat(metadata.totalQueries()).isEqualTo(2);
     }
 
     @Test
@@ -191,32 +188,25 @@ class QueryStoreFileConnectorTest {
     void shouldThrowExceptionForNonExistentFile() {
         // Given
         String nonExistentFile = tempDir.resolve("does-not-exist.json").toString();
-        QueryStoreFileConnector connector = new QueryStoreFileConnector(nonExistentFile);
 
         // When & Then
-        assertThatThrownBy(connector::loadData)
+        assertThatThrownBy(() -> new QueryStoreFileConnector(nonExistentFile))
                 .isInstanceOf(IOException.class)
                 .hasMessageContaining("Query Store export file not found");
     }
 
     @Test
     void shouldThrowExceptionForInvalidJson() {
-        // Given
-        QueryStoreFileConnector connector = new QueryStoreFileConnector(invalidExportFile.toString());
-
-        // When & Then
-        assertThatThrownBy(connector::loadData)
+        // Given & When & Then
+        assertThatThrownBy(() -> new QueryStoreFileConnector(invalidExportFile.toString()))
                 .isInstanceOf(IOException.class);
     }
 
     @Test
     void shouldThrowExceptionForMissingMetadata() {
-        // Given
-        QueryStoreFileConnector connector = new QueryStoreFileConnector(missingMetadataFile.toString());
-
-        // When & Then
-        assertThatThrownBy(connector::loadData)
-                .isInstanceOf(IOException.class)
+        // Given & When & Then
+        assertThatThrownBy(() -> new QueryStoreFileConnector(missingMetadataFile.toString()))
+                .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("Missing export_metadata section");
     }
 
@@ -230,19 +220,6 @@ class QueryStoreFileConnectorTest {
         assertThat(connector.getAllQueries()).hasSize(2);
         assertThat(connector.isQueryStoreEnabled()).isTrue();
         assertThat(connector.getQueryStoreQueryCount()).isEqualTo(2);
-    }
-
-    @Test
-    void shouldWrapIOExceptionInIOException() {
-        // Given
-        String nonExistentFile = tempDir.resolve("does-not-exist.json").toString();
-        QueryStoreFileConnector connector = new QueryStoreFileConnector(nonExistentFile);
-
-        // When & Then
-        assertThatThrownBy(connector::getAllQueries)
-                .isInstanceOf(IOException.class)
-                .hasMessageContaining("Failed to load Query Store export file")
-                .hasCauseInstanceOf(IOException.class);
     }
 
     @Test
@@ -260,11 +237,9 @@ class QueryStoreFileConnectorTest {
             """;
         Files.writeString(incompleteFile, incompleteJson);
 
-        QueryStoreFileConnector connector = new QueryStoreFileConnector(incompleteFile.toString());
-
         // When & Then
-        assertThatThrownBy(connector::loadData)
-                .isInstanceOf(IOException.class)
+        assertThatThrownBy(() -> new QueryStoreFileConnector(incompleteFile.toString()))
+                .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("Missing required metadata field: query_store_enabled");
     }
 
