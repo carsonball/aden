@@ -403,7 +403,7 @@ public class JsonRecommendationEngine {
     private void appendProductionMetricsSummary(StringBuilder prompt, QueryStoreAnalysis productionMetrics) {
         prompt.append("\n## Production Metrics Summary:\n");
         
-        QualifiedMetrics qualifiedMetrics = productionMetrics.getQualifiedMetrics();
+        QualifiedMetrics qualifiedMetrics = productionMetrics.qualifiedMetrics();
         if (qualifiedMetrics != null) {
             long totalExecutions = qualifiedMetrics.getTotalExecutions();
             prompt.append("- Total Query Executions: ")
@@ -415,7 +415,7 @@ public class JsonRecommendationEngine {
             
             TableAccessPatterns tablePatterns = qualifiedMetrics.getTableAccessPatterns();
             if (tablePatterns != null) {
-                boolean hasCoAccess = tablePatterns.isHasStrongCoAccessPatterns();
+                boolean hasCoAccess = tablePatterns.hasStrongCoAccessPatterns();
                 if (hasCoAccess) {
                     prompt.append("- Strong table co-access patterns detected\n");
                 }

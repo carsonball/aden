@@ -19,7 +19,7 @@ namespace TestEcommerceApp
 
         public void RunSimulation()
         {
-            Console.WriteLine("Running Day 2 DynamoDB-focused simulation...");
+            Console.WriteLine("Running DynamoDB-focused simulation...");
             var totalStopwatch = Stopwatch.StartNew();
             
             // Basic verification that data exists

@@ -77,3 +77,6 @@ npm-debug.log*
 pids
 *.pid
 *.seed
+
+# Aden
+/query-store-export.json

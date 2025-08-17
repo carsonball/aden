@@ -1,12 +1,16 @@
 package org.carball.aden.model.query;
 
-import lombok.Data;
+import lombok.*;
+
 import java.util.List;
 
 /**
  * Analysis result for a single query from Query Store.
  */
-@Data
+@Getter
+@ToString
+@EqualsAndHashCode
+@Builder
 public class AnalyzedQuery {
     private long queryId;
     private long executionCount;

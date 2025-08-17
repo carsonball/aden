@@ -134,17 +134,17 @@ class QueryStoreFileConnectorTest {
         assertThat(queries).hasSize(2);
         
         QueryStoreQuery firstQuery = queries.get(0);
-        assertThat(firstQuery.getQueryId()).isEqualTo("1001");
-        assertThat(firstQuery.getSqlText()).isEqualTo("SELECT * FROM Products WHERE CategoryId = @p1");
-        assertThat(firstQuery.getExecutionCount()).isEqualTo(15420);
-        assertThat(firstQuery.getAvgDurationMs()).isEqualTo(2.45);
-        assertThat(firstQuery.getAvgCpuTimeMs()).isEqualTo(1.85);
-        assertThat(firstQuery.getAvgLogicalReads()).isEqualTo(12.3);
+        assertThat(firstQuery.queryId()).isEqualTo("1001");
+        assertThat(firstQuery.sqlText()).isEqualTo("SELECT * FROM Products WHERE CategoryId = @p1");
+        assertThat(firstQuery.executionCount()).isEqualTo(15420);
+        assertThat(firstQuery.avgDurationMs()).isEqualTo(2.45);
+        assertThat(firstQuery.avgCpuTimeMs()).isEqualTo(1.85);
+        assertThat(firstQuery.avgLogicalReads()).isEqualTo(12.3);
 
         QueryStoreQuery secondQuery = queries.get(1);
-        assertThat(secondQuery.getQueryId()).isEqualTo("1002");
-        assertThat(secondQuery.getSqlText()).isEqualTo("SELECT COUNT(*) FROM Orders WHERE CustomerId = @p1");
-        assertThat(secondQuery.getExecutionCount()).isEqualTo(8950);
+        assertThat(secondQuery.queryId()).isEqualTo("1002");
+        assertThat(secondQuery.sqlText()).isEqualTo("SELECT COUNT(*) FROM Orders WHERE CustomerId = @p1");
+        assertThat(secondQuery.executionCount()).isEqualTo(8950);
     }
 
     @Test
@@ -322,7 +322,7 @@ class QueryStoreFileConnectorTest {
     }
 
     @Test
-    void shouldHandleMainMethodWithValidFile() throws IOException {
+    void shouldHandleMainMethodWithValidFile() {
         // Given
         String[] args = {validExportFile.toString()};
 

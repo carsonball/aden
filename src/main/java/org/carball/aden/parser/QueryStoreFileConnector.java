@@ -140,7 +140,7 @@ public class QueryStoreFileConnector {
         public record ExportMetadata(String databaseName, String exportTimestamp, String sqlServerVersion,
                                      boolean queryStoreEnabled, int totalQueries) {
 
-        @Override
+            @Override
             public String toString() {
                 return String.format("ExportMetadata{database='%s', timestamp='%s', version='%s', enabled=%s, queries=%d}",
                         databaseName, exportTimestamp, sqlServerVersion, queryStoreEnabled, totalQueries);
@@ -193,13 +193,13 @@ public class QueryStoreFileConnector {
             // Show first 5 for testing
             for (int i = 0; i < Math.min(5, allQueries.size()); i++) {
                 QueryStoreQuery query = allQueries.get(i);
-                System.out.printf("\n#%d - Query ID: %s%n", i + 1, query.getQueryId());
-                System.out.printf("  Executions: %,d%n", query.getExecutionCount());
-                System.out.printf("  Avg Duration: %.2f ms%n", query.getAvgDurationMs());
+                System.out.printf("\n#%d - Query ID: %s%n", i + 1, query.queryId());
+                System.out.printf("  Executions: %,d%n", query.executionCount());
+                System.out.printf("  Avg Duration: %.2f ms%n", query.avgDurationMs());
                 
-                String sqlPreview = query.getSqlText().length() > 150 
-                    ? query.getSqlText().substring(0, 150) + "..."
-                    : query.getSqlText();
+                String sqlPreview = query.sqlText().length() > 150
+                    ? query.sqlText().substring(0, 150) + "..."
+                    : query.sqlText();
                 System.out.printf("  SQL: %s%n", sqlPreview.replaceAll("\\s+", " "));
             }
             

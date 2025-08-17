@@ -1,6 +1,7 @@
 package org.carball.aden.parser;
 
 import org.carball.aden.model.query.*;
+import org.carball.aden.config.ThresholdConfig;
 
 import java.util.*;
 import java.util.regex.Matcher;
@@ -9,7 +10,6 @@ import java.util.stream.Collectors;
 
 /**
  * Analyzes Query Store data and prepares qualified metrics for AI decisioning.
- * Does NOT make recommendations - that's the AI's job.
  */
 public class QueryStoreAnalyzer {
     
@@ -24,77 +24,66 @@ public class QueryStoreAnalyzer {
         Pattern.CASE_INSENSITIVE
     );
     
-    public QueryStoreAnalyzer() {
+    private QueryStoreAnalyzer() {
+        // Utility class - prevent instantiation
     }
     
     /**
      * Analyzes queries and returns qualified metrics.
      */
-    public QueryStoreAnalysis analyze(List<QueryStoreQuery> queries, String databaseName) {
-        QueryStoreAnalysis analysis = new QueryStoreAnalysis();
-        
-        // Metadata
-        analysis.setDatabase(databaseName);
-        analysis.setAnalysisType("QUERY_STORE_PRODUCTION_METRICS");
-        analysis.setTimestamp(new Date());
-        analysis.setTotalQueriesAnalyzed(queries.size());
-        
+    public static QueryStoreAnalysis analyze(List<QueryStoreQuery> queries, String databaseName, ThresholdConfig thresholdConfig) {
         // Analyze queries
         List<AnalyzedQuery> analyzedQueries = queries.stream()
-            .map(this::analyzeQuery)
+            .map(QueryStoreAnalyzer::analyzeQuery)
             .collect(Collectors.toList());
-        analysis.setQueries(analyzedQueries);
         
         // Create qualified metrics for AI
-        QualifiedMetrics qualifiedMetrics = createQualifiedMetrics(analyzedQueries);
-        analysis.setQualifiedMetrics(qualifiedMetrics);
+        QualifiedMetrics qualifiedMetrics = createQualifiedMetrics(analyzedQueries, thresholdConfig);
         
-        return analysis;
+        return new QueryStoreAnalysis(databaseName, "QUERY_STORE_PRODUCTION_METRICS", new Date(),
+                queries.size(), analyzedQueries, qualifiedMetrics);
     }
     
     /**
      * Analyzes individual query to extract AI-relevant qualifications.
      */
-    private AnalyzedQuery analyzeQuery(QueryStoreQuery query) {
-        AnalyzedQuery analyzed = new AnalyzedQuery();
-        
-        // Basic metrics
-        analyzed.setQueryId(Long.parseLong(query.getQueryId()));
-        analyzed.setExecutionCount(query.getExecutionCount());
-        analyzed.setAvgDurationMs(query.getAvgDurationMs());
-        analyzed.setAvgCpuTimeMs(query.getAvgCpuTimeMs());
-        analyzed.setAvgLogicalReads(query.getAvgLogicalReads());
-        
+    private static AnalyzedQuery analyzeQuery(QueryStoreQuery query) {
         // Extract operation type
-        String operationType = extractOperationType(query.getSqlText());
-        analyzed.setOperationType(operationType);
+        String operationType = extractOperationType(query.sqlText());
         
         // Extract tables accessed
-        List<String> tablesAccessed = extractTableNames(query.getSqlText());
-        analyzed.setTablesAccessed(tablesAccessed);
-        analyzed.setTableCount(tablesAccessed.size());
+        List<String> tablesAccessed = extractTableNames(query.sqlText());
         
         // Determine access pattern
-        String accessPattern = determineAccessPattern(query.getSqlText());
-        analyzed.setAccessPattern(accessPattern);
+        String accessPattern = determineAccessPattern(query.sqlText());
         
         // Check for joins
-        boolean hasJoins = query.getSqlText().toUpperCase().contains("JOIN");
-        analyzed.setHasJoins(hasJoins);
+        boolean hasJoins = query.sqlText().toUpperCase().contains("JOIN");
         
         // SQL preview
-        String sqlPreview = query.getSqlText().length() > 200 
-            ? query.getSqlText().substring(0, 200) + "..."
-            : query.getSqlText();
-        analyzed.setSqlPreview(sqlPreview.replaceAll("\\s+", " "));
+        String sqlPreview = query.sqlText().length() > 150
+            ? query.sqlText().substring(0, 150) + "..."
+            : query.sqlText();
         
-        return analyzed;
+        return AnalyzedQuery.builder()
+            .queryId(Long.parseLong(query.queryId()))
+            .executionCount(query.executionCount())
+            .avgDurationMs(query.avgDurationMs())
+            .avgCpuTimeMs(query.avgCpuTimeMs())
+            .avgLogicalReads(query.avgLogicalReads())
+            .operationType(operationType)
+            .tablesAccessed(tablesAccessed)
+            .tableCount(tablesAccessed.size())
+            .accessPattern(accessPattern)
+            .hasJoins(hasJoins)
+            .sqlPreview(sqlPreview.replaceAll("\\s+", " "))
+            .build();
     }
     
     /**
      * Creates qualified metrics for AI decisioning.
      */
-    private QualifiedMetrics createQualifiedMetrics(List<AnalyzedQuery> analyzedQueries) {
+    private static QualifiedMetrics createQualifiedMetrics(List<AnalyzedQuery> analyzedQueries, ThresholdConfig thresholdConfig) {
         QualifiedMetrics metrics = new QualifiedMetrics();
         
         // Total execution count
@@ -121,7 +110,7 @@ public class QueryStoreAnalyzer {
         metrics.setReadHeavy(readWriteRatio > 10);
         
         // Table co-access patterns
-        TableAccessPatterns tablePatterns = analyzeTablePatterns(analyzedQueries, totalExecutions);
+        TableAccessPatterns tablePatterns = analyzeTablePatterns(analyzedQueries, totalExecutions, thresholdConfig);
         metrics.setTableAccessPatterns(tablePatterns);
         
         // Performance characteristics
@@ -142,24 +131,22 @@ public class QueryStoreAnalyzer {
     /**
      * Analyzes table access patterns for co-location insights.
      */
-    private TableAccessPatterns analyzeTablePatterns(List<AnalyzedQuery> queries, long totalExecutions) {
-        TableAccessPatterns patterns = new TableAccessPatterns();
-        
+    private static TableAccessPatterns analyzeTablePatterns(List<AnalyzedQuery> queries, long totalExecutions, ThresholdConfig thresholdConfig) {
         // Find tables that are always accessed together
-        Map<Set<String>, Long> tableSetFrequency = new HashMap<>();
+        Map<Set<String>, Long> tableCombinationFrequency = new HashMap<>();
         
         for (AnalyzedQuery query : queries) {
             List<String> tables = query.getTablesAccessed();
             if (tables.size() > 1) {
                 Set<String> tableSet = new HashSet<>(tables);
                 long executions = query.getExecutionCount();
-                tableSetFrequency.merge(tableSet, executions, Long::sum);
+                tableCombinationFrequency.merge(tableSet, executions, Long::sum);
             }
         }
         
         // Find high-frequency table combinations
-        List<TableCombination> frequentCombinations = tableSetFrequency.entrySet().stream()
-            .filter(entry -> entry.getValue() > 50) // Lower threshold for test data
+        List<TableCombination> frequentCombinations = tableCombinationFrequency.entrySet().stream()
+            .filter(entry -> entry.getValue() > thresholdConfig.getProductionCoAccessThreshold())
             .map(entry -> {
                 TableCombination combo = new TableCombination();
                 combo.setTables(new ArrayList<>(entry.getKey()));
@@ -172,17 +159,14 @@ public class QueryStoreAnalyzer {
                 a.getTotalExecutions()
             ))
             .collect(Collectors.toList());
-        
-        patterns.setFrequentTableCombinations(frequentCombinations);
-        patterns.setHasStrongCoAccessPatterns(!frequentCombinations.isEmpty());
-        
-        return patterns;
+
+        return new TableAccessPatterns(frequentCombinations, !frequentCombinations.isEmpty());
     }
     
     /**
      * Analyzes performance characteristics.
      */
-    private PerformanceCharacteristics analyzePerformance(List<AnalyzedQuery> queries) {
+    private static PerformanceCharacteristics analyzePerformance(List<AnalyzedQuery> queries) {
         PerformanceCharacteristics perf = new PerformanceCharacteristics();
         
         // Average metrics
@@ -218,7 +202,7 @@ public class QueryStoreAnalyzer {
     /**
      * Extracts operation type from SQL.
      */
-    private String extractOperationType(String sql) {
+    private static String extractOperationType(String sql) {
         Matcher matcher = OPERATION_PATTERN.matcher(sql);
         if (matcher.find()) {
             return matcher.group(1).toUpperCase();
@@ -229,7 +213,7 @@ public class QueryStoreAnalyzer {
     /**
      * Extracts table names from SQL.
      */
-    private List<String> extractTableNames(String sql) {
+    private static List<String> extractTableNames(String sql) {
         List<String> tables = new ArrayList<>();
         
         // First try the standard pattern
@@ -261,7 +245,7 @@ public class QueryStoreAnalyzer {
     /**
      * Determines access pattern from SQL.
      */
-    private String determineAccessPattern(String sql) {
+    private static String determineAccessPattern(String sql) {
         String upperSql = sql.toUpperCase();
         
         if (upperSql.contains("WHERE") && upperSql.contains("=") && !upperSql.contains("JOIN")) {
@@ -290,8 +274,6 @@ public class QueryStoreAnalyzer {
         
         try {
             String exportFilePath = args[0];
-            QueryStoreAnalyzer analyzer = new QueryStoreAnalyzer();
-            
             System.out.println("=== Query Store Analysis (File-Based) ===");
             System.out.println("Export file: " + exportFilePath);
             
@@ -310,14 +292,14 @@ public class QueryStoreAnalyzer {
             System.out.println("Database: " + metadata.databaseName());
             System.out.println("Export timestamp: " + metadata.exportTimestamp());
             
-            // Analyze
-            QueryStoreAnalysis analysis = analyzer.analyze(queries, metadata.databaseName());
+            // Analyze with default thresholds
+            ThresholdConfig defaultThresholds = ThresholdConfig.createDiscoveryDefaults();
+            QueryStoreAnalysis analysis = QueryStoreAnalyzer.analyze(queries, metadata.databaseName(), defaultThresholds);
             
-            System.out.printf("✓ Analysis completed with %d queries%n", analysis.getTotalQueriesAnalyzed());
+            System.out.printf("✓ Analysis completed with %d queries%n", analysis.totalQueriesAnalyzed());
             
         } catch (Exception e) {
-            System.err.println("ERROR: " + e.getMessage());
-            e.printStackTrace();
+            System.err.println("ERROR: " + e);
         }
     }
 }

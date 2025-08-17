@@ -171,39 +171,31 @@ public class DotNetPatternAnalyzerProductionMetricsTest {
     }
 
     private QueryStoreAnalysis createProductionMetrics() {
-        QueryStoreAnalysis analysis = new QueryStoreAnalysis();
-        analysis.setDatabase("TestDB");
-        analysis.setAnalysisType("QUERY_STORE_PRODUCTION_METRICS");
-        analysis.setTimestamp(new Date());
-        analysis.setTotalQueriesAnalyzed(2);
-        
         // Individual queries
         List<AnalyzedQuery> queries = new ArrayList<>();
         
         // Query accessing Customer and CustomerProfile
-        AnalyzedQuery query1 = new AnalyzedQuery();
-        query1.setQueryId(1L);
-        query1.setExecutionCount(3000L);
-        query1.setOperationType("SELECT");
-        query1.setTablesAccessed(Arrays.asList("Customer", "CustomerProfile"));
+        AnalyzedQuery query1 = AnalyzedQuery.builder()
+            .queryId(1L)
+            .executionCount(3000L)
+            .operationType("SELECT")
+            .tablesAccessed(Arrays.asList("Customer", "CustomerProfile"))
+            .build();
         queries.add(query1);
         
         // Query accessing just CustomerProfile
-        AnalyzedQuery query2 = new AnalyzedQuery();
-        query2.setQueryId(2L);
-        query2.setExecutionCount(2000L);
-        query2.setOperationType("SELECT");
-        query2.setTablesAccessed(List.of("CustomerProfile"));
+        AnalyzedQuery query2 = AnalyzedQuery.builder()
+            .queryId(2L)
+            .executionCount(2000L)
+            .operationType("SELECT")
+            .tablesAccessed(List.of("CustomerProfile"))
+            .build();
         queries.add(query2);
-        
-        analysis.setQueries(queries);
         
         // Qualified metrics
         QualifiedMetrics qualifiedMetrics = new QualifiedMetrics();
         qualifiedMetrics.setTotalExecutions(5000L);
-        
-        // Table access patterns
-        TableAccessPatterns tablePatterns = new TableAccessPatterns();
+
         List<TableCombination> frequentCombinations = new ArrayList<>();
         
         // Customer and CustomerProfile are frequently accessed together
@@ -212,46 +204,35 @@ public class DotNetPatternAnalyzerProductionMetricsTest {
         combo1.setTotalExecutions(5000L);
         combo1.setExecutionPercentage(45.0);
         frequentCombinations.add(combo1);
-        
-        tablePatterns.setFrequentTableCombinations(frequentCombinations);
-        tablePatterns.setHasStrongCoAccessPatterns(true);
+
+        // Table access patterns
+        TableAccessPatterns tablePatterns = new TableAccessPatterns(frequentCombinations, true);
         qualifiedMetrics.setTableAccessPatterns(tablePatterns);
-        
-        analysis.setQualifiedMetrics(qualifiedMetrics);
-        
-        return analysis;
+
+        return new QueryStoreAnalysis("TestDB", "QUERY_STORE_PRODUCTION_METRICS", new Date(),
+                2, queries, qualifiedMetrics);
     }
 
     private QueryStoreAnalysis createProductionMetricsWithCustomTableName() {
-        QueryStoreAnalysis analysis = new QueryStoreAnalysis();
-        analysis.setDatabase("TestDB");
-        analysis.setAnalysisType("QUERY_STORE_PRODUCTION_METRICS");
-        analysis.setTimestamp(new Date());
-        analysis.setTotalQueriesAnalyzed(1);
-        
         // Query with custom table name
         List<AnalyzedQuery> queries = new ArrayList<>();
-        AnalyzedQuery query = new AnalyzedQuery();
-        query.setQueryId(1L);
-        query.setExecutionCount(1500L);
-        query.setOperationType("SELECT");
-        query.setTablesAccessed(List.of("Customers")); // Matches entityWithCustomTable.tableName
+        AnalyzedQuery query = AnalyzedQuery.builder()
+            .queryId(1L)
+            .executionCount(1500L)
+            .operationType("SELECT")
+            .tablesAccessed(List.of("Customers")) // Matches entityWithCustomTable.tableName
+            .build();
         queries.add(query);
-        
-        analysis.setQueries(queries);
         
         // Qualified metrics
         QualifiedMetrics qualifiedMetrics = new QualifiedMetrics();
         qualifiedMetrics.setTotalExecutions(1500L);
         
-        TableAccessPatterns tablePatterns = new TableAccessPatterns();
-        tablePatterns.setFrequentTableCombinations(new ArrayList<>());
-        tablePatterns.setHasStrongCoAccessPatterns(false);
+        TableAccessPatterns tablePatterns = new TableAccessPatterns(new ArrayList<>(), false);
         qualifiedMetrics.setTableAccessPatterns(tablePatterns);
         
-        analysis.setQualifiedMetrics(qualifiedMetrics);
-        
-        return analysis;
+        return new QueryStoreAnalysis("TestDB", "QUERY_STORE_PRODUCTION_METRICS", new Date(),
+                1, queries, qualifiedMetrics);
     }
 
     private DenormalizationCandidate findCandidate(List<DenormalizationCandidate> candidates, String entityName) {

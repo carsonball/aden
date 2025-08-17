@@ -57,6 +57,19 @@ For security-related changes:
 - Related entities populated from: DB foreign keys + EF navigation + query patterns
 - Batched AI requests consider all entities together for single-table design
 
+### Query Store Export Procedure
+```bash
+# Generate Query Store data by running TestEcommerceApp simulation
+cd samples/TestEcommerceApp
+dotnet build
+./bin/Debug/TestEcommerceApp.exe
+
+# Export Query Store data to JSON (requires SQL Server connection)
+# Using MCP tools (connection from samples/TestEcommerceApp/App.config):
+# Server=localhost,1433;Database=TestEcommerceApp;User Id=sa;Password=TestPassword123!;TrustServerCertificate=True;MultipleActiveResultSets=True;
+# Run scripts/export-query-store.sql to generate query-store-export.json
+```
+
 ### Testing Commands
 ```bash
 # Run all tests
@@ -107,15 +120,11 @@ Options:
   --output, -o        Output file for recommendations (default: recommendations.json)
   --format, -f        Output format: json|markdown|both (default: json)
   --api-key           OpenAI API key (or set OPENAI_API_KEY env var)
-  --target            AWS target: dynamodb|documentdb|neptune|all (default: all)
-  --complexity        Include only: low|medium|high|all (default: all)
   --query-store-file  JSON file exported from Query Store (optional)
+  --thresholds        YAML file with custom analysis thresholds (optional)
   --terraform         Generate Terraform infrastructure scripts
-  --profile           Migration profile: default|aggressive|startup-aggressive|discovery
   --verbose, -v       Enable verbose output
-  --help              Show help information
-  --help-profiles     Show available migration profiles
-  --help-thresholds   Show threshold configuration options
+  --help, -h          Show this help message
 ```
 
 ### Environment Variables

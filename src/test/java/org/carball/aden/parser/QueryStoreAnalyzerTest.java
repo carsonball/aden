@@ -1,6 +1,7 @@
 package org.carball.aden.parser;
 
 import org.carball.aden.model.query.*;
+import org.carball.aden.config.ThresholdConfig;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -15,36 +16,37 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 class QueryStoreAnalyzerTest {
     
-    private QueryStoreAnalyzer analyzer;
+    private ThresholdConfig thresholdConfig;
+    
     @BeforeEach
     void setUp() {
-        analyzer = new QueryStoreAnalyzer();
+        thresholdConfig = ThresholdConfig.createDiscoveryDefaults();
     }
     
     @Test
     void testAnalyzeCustomerProfileQueries() {
         // Create test queries simulating Customer+Profile pattern
         List<QueryStoreQuery> queries = Arrays.asList(
-            createTestQuery("1", 
+            new QueryStoreQuery("1",
                 "(@p__linq__0 int)SELECT [Extent1].[Id], [Extent2].[Address] " +
                 "FROM [dbo].[Customer] AS [Extent1] " +
                 "LEFT OUTER JOIN [dbo].[CustomerProfile] AS [Extent2] ON [Extent1].[Id] = [Extent2].[CustomerId]",
                 1000, 0.5, 0.4, 4.0),
-            createTestQuery("2",
+            new QueryStoreQuery("2",
                 "UPDATE [dbo].[CustomerProfile] SET [PhoneNumber] = @0 WHERE ([CustomerId] = @1)",
                 50, 0.3, 0.2, 2.0)
         );
         
         // Analyze
-        QueryStoreAnalysis analysis = analyzer.analyze(queries, "TestDB");
+        QueryStoreAnalysis analysis = QueryStoreAnalyzer.analyze(queries, "TestDB", thresholdConfig);
         
         // Verify metadata
-        assertEquals("TestDB", analysis.getDatabase());
-        assertEquals("QUERY_STORE_PRODUCTION_METRICS", analysis.getAnalysisType());
-        assertEquals(2, analysis.getTotalQueriesAnalyzed());
+        assertEquals("TestDB", analysis.database());
+        assertEquals("QUERY_STORE_PRODUCTION_METRICS", analysis.analysisType());
+        assertEquals(2, analysis.totalQueriesAnalyzed());
         
         // Verify qualified metrics
-        QualifiedMetrics metrics = analysis.getQualifiedMetrics();
+        QualifiedMetrics metrics = analysis.qualifiedMetrics();
         assertNotNull(metrics);
         
         // Check operation breakdown
@@ -59,9 +61,9 @@ class QueryStoreAnalyzerTest {
         
         // Check table co-access patterns
         TableAccessPatterns tablePatterns = metrics.getTableAccessPatterns();
-        assertTrue(tablePatterns.isHasStrongCoAccessPatterns());
+        assertTrue(tablePatterns.hasStrongCoAccessPatterns());
         
-        List<TableCombination> combinations = tablePatterns.getFrequentTableCombinations();
+        List<TableCombination> combinations = tablePatterns.frequentTableCombinations();
         assertEquals(1, combinations.size());
         
         TableCombination combo = combinations.get(0);
@@ -75,13 +77,13 @@ class QueryStoreAnalyzerTest {
     void testPerformanceAnalysis() {
         // Create queries with varying performance characteristics
         List<QueryStoreQuery> queries = Arrays.asList(
-            createTestQuery("1", "SELECT * FROM Products", 100, 150.0, 120.0, 1000.0), // Slow query
-            createTestQuery("2", "SELECT * FROM Orders WHERE Id = @0", 500, 5.0, 3.0, 10.0) // Fast query
+            new QueryStoreQuery("1", "SELECT * FROM Products", 100, 150.0, 120.0, 1000.0), // Slow query
+            new QueryStoreQuery("2", "SELECT * FROM Orders WHERE Id = @0", 500, 5.0, 3.0, 10.0) // Fast query
         );
         
-        QueryStoreAnalysis analysis = analyzer.analyze(queries, "TestDB");
+        QueryStoreAnalysis analysis = QueryStoreAnalyzer.analyze(queries, "TestDB", thresholdConfig);
         
-        QualifiedMetrics metrics = analysis.getQualifiedMetrics();
+        QualifiedMetrics metrics = analysis.qualifiedMetrics();
         PerformanceCharacteristics performance = metrics.getPerformanceCharacteristics();
         
         assertEquals(1L, performance.getSlowQueryCount());
@@ -94,14 +96,14 @@ class QueryStoreAnalyzerTest {
     @Test
     void testAccessPatternDetection() {
         List<QueryStoreQuery> queries = Arrays.asList(
-            createTestQuery("1", "SELECT * FROM Users WHERE Id = @0", 100, 1.0, 0.8, 2.0),
-            createTestQuery("2", "SELECT * FROM Products p JOIN Categories c ON p.CategoryId = c.Id", 50, 5.0, 4.0, 10.0),
-            createTestQuery("3", "SELECT COUNT(*) FROM Orders WHERE Date BETWEEN @0 AND @1", 30, 10.0, 8.0, 100.0)
+            new QueryStoreQuery("1", "SELECT * FROM Users WHERE Id = @0", 100, 1.0, 0.8, 2.0),
+            new QueryStoreQuery("2", "SELECT * FROM Products p JOIN Categories c ON p.CategoryId = c.Id", 50, 5.0, 4.0, 10.0),
+            new QueryStoreQuery("3", "SELECT COUNT(*) FROM Orders WHERE Date BETWEEN @0 AND @1", 30, 10.0, 8.0, 100.0)
         );
         
-        QueryStoreAnalysis analysis = analyzer.analyze(queries, "TestDB");
+        QueryStoreAnalysis analysis = QueryStoreAnalyzer.analyze(queries, "TestDB", thresholdConfig);
         
-        QualifiedMetrics metrics = analysis.getQualifiedMetrics();
+        QualifiedMetrics metrics = analysis.qualifiedMetrics();
         Map<String, Long> patterns = metrics.getAccessPatternDistribution();
         
         assertEquals(1L, patterns.get("KEY_LOOKUP").longValue());
@@ -113,22 +115,10 @@ class QueryStoreAnalyzerTest {
     void testEmptyQueryList() {
         List<QueryStoreQuery> emptyQueries = List.of();
         
-        QueryStoreAnalysis analysis = analyzer.analyze(emptyQueries, "TestDB");
+        QueryStoreAnalysis analysis = QueryStoreAnalyzer.analyze(emptyQueries, "TestDB", thresholdConfig);
         
         // Should not throw exception
         assertNotNull(analysis);
-        assertEquals(0, analysis.getTotalQueriesAnalyzed());
-    }
-    
-    private QueryStoreQuery createTestQuery(String id, String sql, long executions, 
-                                          double duration, double cpu, double reads) {
-        QueryStoreQuery query = new QueryStoreQuery();
-        query.setQueryId(id);
-        query.setSqlText(sql);
-        query.setExecutionCount(executions);
-        query.setAvgDurationMs(duration);
-        query.setAvgCpuTimeMs(cpu);
-        query.setAvgLogicalReads(reads);
-        return query;
+        assertEquals(0, analysis.totalQueriesAnalyzed());
     }
 }

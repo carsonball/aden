@@ -424,7 +424,7 @@ public class DotNetAnalyzerCLI {
             // Validate file exists
             Path filePath = Paths.get(queryStoreFile);
             if (!Files.exists(filePath)) {
-                throw new IllegalArgumentException("Query Store export file not found: " + queryStoreFile);
+                throw new IOException("Query Store export file not found: " + queryStoreFile);
             }
             
             // Load data from file
@@ -443,15 +443,14 @@ public class DotNetAnalyzerCLI {
             }
             
             // Analyze the queries
-            QueryStoreAnalyzer analyzer = new QueryStoreAnalyzer();
-            QueryStoreAnalysis analysisResult = analyzer.analyze(queries, databaseName);
+            QueryStoreAnalysis analysisResult = QueryStoreAnalyzer.analyze(queries, databaseName, config.getThresholdConfig());
             
             // Log summary if verbose
             if (config.isVerbose()) {
                 System.out.println("     - Loaded " + queries.size() + " queries from export file");
                 System.out.println("     - Database: " + databaseName);
                 System.out.println("     - Export timestamp: " + metadata.exportTimestamp());
-                QualifiedMetrics metrics = analysisResult.getQualifiedMetrics();
+                QualifiedMetrics metrics = analysisResult.qualifiedMetrics();
                 if (metrics != null) {
                     long totalExec = metrics.getTotalExecutions();
                     System.out.println("     - Total executions: " + String.format("%,d", totalExec));

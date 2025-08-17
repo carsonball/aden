@@ -155,7 +155,7 @@ public class DotNetPatternAnalyzer {
         log.info("Integrating production metrics into entity usage profiles");
         
         // Extract qualified metrics
-        QualifiedMetrics qualifiedMetrics = productionMetrics.getQualifiedMetrics();
+        QualifiedMetrics qualifiedMetrics = productionMetrics.qualifiedMetrics();
         if (qualifiedMetrics == null) {
             log.warn("No qualified metrics found in production data");
             return;
@@ -176,7 +176,7 @@ public class DotNetPatternAnalyzer {
         TableAccessPatterns tablePatterns = qualifiedMetrics.getTableAccessPatterns();
         if (tablePatterns != null) {
             List<TableCombination> frequentCombinations = 
-                tablePatterns.getFrequentTableCombinations();
+                tablePatterns.frequentTableCombinations();
             
             if (frequentCombinations != null) {
                 // Process co-accessed tables
@@ -218,7 +218,7 @@ public class DotNetPatternAnalyzer {
         }
         
         // Extract per-table metrics from analyzed queries
-        List<AnalyzedQuery> analyzedQueries = productionMetrics.getQueries();
+        List<AnalyzedQuery> analyzedQueries = productionMetrics.queries();
         if (analyzedQueries != null) {
             Map<String, Long> tableReadCounts = new HashMap<>();
             Map<String, Long> tableWriteCounts = new HashMap<>();
@@ -323,7 +323,7 @@ public class DotNetPatternAnalyzer {
         // but we can add additional relationship analysis here if needed
         
         // Extract qualified metrics
-        QualifiedMetrics qualifiedMetrics = productionMetrics.getQualifiedMetrics();
+        QualifiedMetrics qualifiedMetrics = productionMetrics.qualifiedMetrics();
         if (qualifiedMetrics == null) {
             return;
         }
@@ -331,7 +331,7 @@ public class DotNetPatternAnalyzer {
         // Check for strong co-access patterns
         TableAccessPatterns tablePatterns = qualifiedMetrics.getTableAccessPatterns();
         if (tablePatterns != null) {
-            boolean hasStrongCoAccessPatterns = tablePatterns.isHasStrongCoAccessPatterns();
+            boolean hasStrongCoAccessPatterns = tablePatterns.hasStrongCoAccessPatterns();
             if (hasStrongCoAccessPatterns) {
                 log.info("Found strong co-access patterns in production data - these will influence denormalization candidates");
             }
