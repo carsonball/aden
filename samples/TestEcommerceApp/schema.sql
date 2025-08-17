@@ -40,3 +40,23 @@ CREATE TABLE OrderItem (
     CONSTRAINT FK_OrderItem_Product FOREIGN KEY (ProductId) 
         REFERENCES Product(Id)
 );
+
+-- Clustered indices for common query patterns
+-- Date-based clustering for reporting workloads (most common pattern)
+CREATE NONCLUSTERED INDEX IX_Order_OrderDate_CustomerId 
+ON [Order] (OrderDate, CustomerId);
+
+-- Customer-centric access patterns for customer service dashboards
+CREATE NONCLUSTERED INDEX IX_Order_CustomerId_OrderDate 
+ON [Order] (CustomerId, OrderDate) 
+INCLUDE (TotalAmount);
+
+-- Product catalog browsing - common in e-commerce applications
+CREATE NONCLUSTERED INDEX IX_Product_Category_Price 
+ON Product (Category, Price) 
+INCLUDE (Name);
+
+-- Order items by order for efficient order detail retrieval
+CREATE NONCLUSTERED INDEX IX_OrderItem_OrderId_ProductId
+ON OrderItem (OrderId, ProductId)
+INCLUDE (Quantity, Price);

@@ -87,13 +87,41 @@ namespace TestEcommerceApp
             {
                 Console.WriteLine($"Error: {ex.Message}");
                 Console.WriteLine($"Stack trace: {ex.StackTrace}");
-                Console.WriteLine("\nPress any key to exit...");
-                Console.ReadKey();
+                
+                try 
+                {
+                    if (Console.IsInputRedirected || Console.IsOutputRedirected)
+                    {
+                        Console.WriteLine("Console redirected - auto-exiting with error");
+                        Environment.Exit(1);
+                        return;
+                    }
+                    Console.WriteLine("\nPress any key to exit...");
+                    Console.ReadKey();
+                }
+                catch (InvalidOperationException)
+                {
+                    // Running in redirected environment - just exit
+                    Console.WriteLine("Auto-exiting (console redirected)");
+                }
                 Environment.Exit(1);
             }
 
-            Console.WriteLine("Press any key to exit...");
-            Console.ReadKey();
+            try 
+            {
+                if (Console.IsInputRedirected || Console.IsOutputRedirected)
+                {
+                    Console.WriteLine("Console redirected - auto-exiting");
+                    return;
+                }
+                Console.WriteLine("Press any key to exit...");
+                Console.ReadKey();
+            }
+            catch (InvalidOperationException)
+            {
+                // Running in redirected environment - just exit
+                Console.WriteLine("Auto-exiting (console redirected)");
+            }
         }
     }
 }
