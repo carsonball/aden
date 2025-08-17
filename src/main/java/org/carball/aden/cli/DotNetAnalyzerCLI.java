@@ -10,7 +10,7 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import org.carball.aden.model.analysis.AnalysisResult;
 import org.carball.aden.model.query.QueryStoreQuery;
 import org.carball.aden.model.query.QueryStoreAnalysis;
-import org.carball.aden.model.query.QualifiedMetrics;
+import org.carball.aden.model.query.QueryStoreMetrics;
 import org.carball.aden.model.recommendation.NoSQLRecommendation;
 import org.carball.aden.output.MigrationReport;
 import org.carball.aden.parser.QueryStoreAnalyzer;
@@ -450,7 +450,7 @@ public class DotNetAnalyzerCLI {
                 System.out.println("     - Loaded " + queries.size() + " queries from export file");
                 System.out.println("     - Database: " + databaseName);
                 System.out.println("     - Export timestamp: " + metadata.exportTimestamp());
-                QualifiedMetrics metrics = analysisResult.qualifiedMetrics();
+                QueryStoreMetrics metrics = analysisResult.queryStoreMetrics();
                 if (metrics != null) {
                     long totalExec = metrics.getTotalExecutions();
                     System.out.println("     - Total executions: " + String.format("%,d", totalExec));

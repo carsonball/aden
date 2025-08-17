@@ -4,10 +4,10 @@ import lombok.Data;
 import java.util.Map;
 
 /**
- * Qualified metrics for AI decisioning.
+ * Query store metrics for AI decisioning.
  */
 @Data
-public class QualifiedMetrics {
+public class QueryStoreMetrics {
     private long totalExecutions;
     private Map<String, Long> operationBreakdown;
     private double readWriteRatio;

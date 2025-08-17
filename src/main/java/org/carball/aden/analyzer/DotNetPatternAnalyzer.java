@@ -154,10 +154,10 @@ public class DotNetPatternAnalyzer {
                                           QueryStoreAnalysis productionMetrics) {
         log.info("Integrating production metrics into entity usage profiles");
         
-        // Extract qualified metrics
-        QualifiedMetrics qualifiedMetrics = productionMetrics.qualifiedMetrics();
-        if (qualifiedMetrics == null) {
-            log.warn("No qualified metrics found in production data");
+        // Extract query store metrics
+        QueryStoreMetrics queryStoreMetrics = productionMetrics.queryStoreMetrics();
+        if (queryStoreMetrics == null) {
+            log.warn("No query store metrics found in production data");
             return;
         }
         
@@ -173,7 +173,7 @@ public class DotNetPatternAnalyzer {
         }
         
         // Extract table access patterns
-        TableAccessPatterns tablePatterns = qualifiedMetrics.getTableAccessPatterns();
+        TableAccessPatterns tablePatterns = queryStoreMetrics.getTableAccessPatterns();
         if (tablePatterns != null) {
             List<TableCombination> frequentCombinations = 
                 tablePatterns.frequentTableCombinations();
@@ -322,14 +322,14 @@ public class DotNetPatternAnalyzer {
         // The co-access patterns are already integrated in integrateProductionMetrics
         // but we can add additional relationship analysis here if needed
         
-        // Extract qualified metrics
-        QualifiedMetrics qualifiedMetrics = productionMetrics.qualifiedMetrics();
-        if (qualifiedMetrics == null) {
+        // Extract query store metrics
+        QueryStoreMetrics queryStoreMetrics = productionMetrics.queryStoreMetrics();
+        if (queryStoreMetrics == null) {
             return;
         }
         
         // Check for strong co-access patterns
-        TableAccessPatterns tablePatterns = qualifiedMetrics.getTableAccessPatterns();
+        TableAccessPatterns tablePatterns = queryStoreMetrics.getTableAccessPatterns();
         if (tablePatterns != null) {
             boolean hasStrongCoAccessPatterns = tablePatterns.hasStrongCoAccessPatterns();
             if (hasStrongCoAccessPatterns) {

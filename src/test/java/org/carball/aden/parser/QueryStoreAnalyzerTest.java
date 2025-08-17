@@ -45,8 +45,8 @@ class QueryStoreAnalyzerTest {
         assertEquals("QUERY_STORE_PRODUCTION_METRICS", analysis.analysisType());
         assertEquals(2, analysis.totalQueriesAnalyzed());
         
-        // Verify qualified metrics
-        QualifiedMetrics metrics = analysis.qualifiedMetrics();
+        // Verify query store metrics
+        QueryStoreMetrics metrics = analysis.queryStoreMetrics();
         assertNotNull(metrics);
         
         // Check operation breakdown
@@ -83,13 +83,13 @@ class QueryStoreAnalyzerTest {
         
         QueryStoreAnalysis analysis = QueryStoreAnalyzer.analyze(queries, "TestDB", thresholdConfig);
         
-        QualifiedMetrics metrics = analysis.qualifiedMetrics();
+        QueryStoreMetrics metrics = analysis.queryStoreMetrics();
         PerformanceCharacteristics performance = metrics.getPerformanceCharacteristics();
         
-        assertEquals(1L, performance.getSlowQueryCount());
-        assertTrue(performance.isHasPerformanceIssues());
+        assertEquals(1L, performance.slowQueryCount());
+        assertTrue(performance.hasPerformanceIssues());
         
-        double avgDuration = performance.getAvgQueryDurationMs();
+        double avgDuration = performance.avgQueryDurationMs();
         assertTrue(avgDuration > 20); // Should be weighted average
     }
     
@@ -103,7 +103,7 @@ class QueryStoreAnalyzerTest {
         
         QueryStoreAnalysis analysis = QueryStoreAnalyzer.analyze(queries, "TestDB", thresholdConfig);
         
-        QualifiedMetrics metrics = analysis.qualifiedMetrics();
+        QueryStoreMetrics metrics = analysis.queryStoreMetrics();
         Map<String, Long> patterns = metrics.getAccessPatternDistribution();
         
         assertEquals(1L, patterns.get("KEY_LOOKUP").longValue());

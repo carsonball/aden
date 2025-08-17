@@ -9,7 +9,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 /**
- * Analyzes Query Store data and prepares qualified metrics for AI decisioning.
+ * Analyzes Query Store data and prepares query store metrics for AI decisioning.
  */
 public class QueryStoreAnalyzer {
     
@@ -29,7 +29,7 @@ public class QueryStoreAnalyzer {
     }
     
     /**
-     * Analyzes queries and returns qualified metrics.
+     * Analyzes queries and returns query store metrics.
      */
     public static QueryStoreAnalysis analyze(List<QueryStoreQuery> queries, String databaseName, ThresholdConfig thresholdConfig) {
         // Analyze queries
@@ -37,11 +37,11 @@ public class QueryStoreAnalyzer {
             .map(QueryStoreAnalyzer::analyzeQuery)
             .collect(Collectors.toList());
         
-        // Create qualified metrics for AI
-        QualifiedMetrics qualifiedMetrics = createQualifiedMetrics(analyzedQueries, thresholdConfig);
+        // Create query store metrics for AI
+        QueryStoreMetrics queryStoreMetrics = createQueryStoreMetrics(analyzedQueries, thresholdConfig);
         
         return new QueryStoreAnalysis(databaseName, "QUERY_STORE_PRODUCTION_METRICS", new Date(),
-                queries.size(), analyzedQueries, qualifiedMetrics);
+                queries.size(), analyzedQueries, queryStoreMetrics);
     }
     
     /**
@@ -81,10 +81,10 @@ public class QueryStoreAnalyzer {
     }
     
     /**
-     * Creates qualified metrics for AI decisioning.
+     * Creates query store metrics for AI decisioning.
      */
-    private static QualifiedMetrics createQualifiedMetrics(List<AnalyzedQuery> analyzedQueries, ThresholdConfig thresholdConfig) {
-        QualifiedMetrics metrics = new QualifiedMetrics();
+    private static QueryStoreMetrics createQueryStoreMetrics(List<AnalyzedQuery> analyzedQueries, ThresholdConfig thresholdConfig) {
+        QueryStoreMetrics metrics = new QueryStoreMetrics();
         
         // Total execution count
         long totalExecutions = analyzedQueries.stream()
@@ -114,7 +114,7 @@ public class QueryStoreAnalyzer {
         metrics.setTableAccessPatterns(tablePatterns);
         
         // Performance characteristics
-        PerformanceCharacteristics performanceMetrics = analyzePerformance(analyzedQueries);
+        PerformanceCharacteristics performanceMetrics = analyzePerformance(analyzedQueries, thresholdConfig);
         metrics.setPerformanceCharacteristics(performanceMetrics);
         
         // Access pattern distribution
@@ -166,9 +166,7 @@ public class QueryStoreAnalyzer {
     /**
      * Analyzes performance characteristics.
      */
-    private static PerformanceCharacteristics analyzePerformance(List<AnalyzedQuery> queries) {
-        PerformanceCharacteristics perf = new PerformanceCharacteristics();
-        
+    private static PerformanceCharacteristics analyzePerformance(List<AnalyzedQuery> queries, ThresholdConfig thresholdConfig) {
         // Average metrics
         double avgDuration = queries.stream()
             .mapToDouble(AnalyzedQuery::getAvgDurationMs)
@@ -185,18 +183,24 @@ public class QueryStoreAnalyzer {
             .average()
             .orElse(0.0);
         
-        perf.setAvgQueryDurationMs(Math.round(avgDuration * 100.0) / 100.0);
-        perf.setAvgCpuTimeMs(Math.round(avgCpu * 100.0) / 100.0);
-        perf.setAvgLogicalReads(Math.round(avgReads));
+        // Calculate rounded values
+        double roundedAvgDuration = Math.round(avgDuration * 100.0) / 100.0;
+        double roundedAvgCpu = Math.round(avgCpu * 100.0) / 100.0;
+        long roundedAvgReads = Math.round(avgReads);
         
-        // Identify slow queries (> 100ms)
+        // Identify slow queries using configurable threshold
         long slowQueryCount = queries.stream()
-            .filter(q -> q.getAvgDurationMs() > 100)
+            .filter(q -> q.getAvgDurationMs() > thresholdConfig.getSlowQueryDurationThresholdMs())
             .count();
-        perf.setSlowQueryCount(slowQueryCount);
-        perf.setHasPerformanceIssues(slowQueryCount > 0);
+        boolean hasPerformanceIssues = slowQueryCount > 0;
         
-        return perf;
+        return new PerformanceCharacteristics(
+            roundedAvgDuration,
+            roundedAvgCpu,
+            roundedAvgReads,
+            slowQueryCount,
+            hasPerformanceIssues
+        );
     }
     
     /**

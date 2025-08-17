@@ -192,9 +192,9 @@ public class DotNetPatternAnalyzerProductionMetricsTest {
             .build();
         queries.add(query2);
         
-        // Qualified metrics
-        QualifiedMetrics qualifiedMetrics = new QualifiedMetrics();
-        qualifiedMetrics.setTotalExecutions(5000L);
+        // Query store metrics
+        QueryStoreMetrics queryStoreMetrics = new QueryStoreMetrics();
+        queryStoreMetrics.setTotalExecutions(5000L);
 
         List<TableCombination> frequentCombinations = new ArrayList<>();
         
@@ -207,10 +207,10 @@ public class DotNetPatternAnalyzerProductionMetricsTest {
 
         // Table access patterns
         TableAccessPatterns tablePatterns = new TableAccessPatterns(frequentCombinations, true);
-        qualifiedMetrics.setTableAccessPatterns(tablePatterns);
+        queryStoreMetrics.setTableAccessPatterns(tablePatterns);
 
         return new QueryStoreAnalysis("TestDB", "QUERY_STORE_PRODUCTION_METRICS", new Date(),
-                2, queries, qualifiedMetrics);
+                2, queries, queryStoreMetrics);
     }
 
     private QueryStoreAnalysis createProductionMetricsWithCustomTableName() {
@@ -224,15 +224,15 @@ public class DotNetPatternAnalyzerProductionMetricsTest {
             .build();
         queries.add(query);
         
-        // Qualified metrics
-        QualifiedMetrics qualifiedMetrics = new QualifiedMetrics();
-        qualifiedMetrics.setTotalExecutions(1500L);
+        // Query store metrics
+        QueryStoreMetrics queryStoreMetrics = new QueryStoreMetrics();
+        queryStoreMetrics.setTotalExecutions(1500L);
         
         TableAccessPatterns tablePatterns = new TableAccessPatterns(new ArrayList<>(), false);
-        qualifiedMetrics.setTableAccessPatterns(tablePatterns);
+        queryStoreMetrics.setTableAccessPatterns(tablePatterns);
         
         return new QueryStoreAnalysis("TestDB", "QUERY_STORE_PRODUCTION_METRICS", new Date(),
-                1, queries, qualifiedMetrics);
+                1, queries, queryStoreMetrics);
     }
 
     private DenormalizationCandidate findCandidate(List<DenormalizationCandidate> candidates, String entityName) {

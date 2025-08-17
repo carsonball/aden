@@ -13,5 +13,5 @@ public record QueryStoreAnalysis(
         Date timestamp,
         int totalQueriesAnalyzed,
         List<AnalyzedQuery> queries,
-        QualifiedMetrics qualifiedMetrics
+        QueryStoreMetrics queryStoreMetrics
 ) {}

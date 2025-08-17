@@ -403,17 +403,17 @@ public class JsonRecommendationEngine {
     private void appendProductionMetricsSummary(StringBuilder prompt, QueryStoreAnalysis productionMetrics) {
         prompt.append("\n## Production Metrics Summary:\n");
         
-        QualifiedMetrics qualifiedMetrics = productionMetrics.qualifiedMetrics();
-        if (qualifiedMetrics != null) {
-            long totalExecutions = qualifiedMetrics.getTotalExecutions();
+        QueryStoreMetrics queryStoreMetrics = productionMetrics.queryStoreMetrics();
+        if (queryStoreMetrics != null) {
+            long totalExecutions = queryStoreMetrics.getTotalExecutions();
             prompt.append("- Total Query Executions: ")
                   .append(String.format("%,d", totalExecutions)).append("\n");
             
-            double readWriteRatio = qualifiedMetrics.getReadWriteRatio();
+            double readWriteRatio = queryStoreMetrics.getReadWriteRatio();
             prompt.append("- Overall Read/Write Ratio: ")
                   .append(String.format("%.1f:1", readWriteRatio)).append("\n");
             
-            TableAccessPatterns tablePatterns = qualifiedMetrics.getTableAccessPatterns();
+            TableAccessPatterns tablePatterns = queryStoreMetrics.getTableAccessPatterns();
             if (tablePatterns != null) {
                 boolean hasCoAccess = tablePatterns.hasStrongCoAccessPatterns();
                 if (hasCoAccess) {

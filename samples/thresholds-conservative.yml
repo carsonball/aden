@@ -58,3 +58,9 @@ medium_read_ratio_threshold: 5.0
 # Minimum read count required before analyzing read/write ratios
 # Conservative: 10 (sufficient data for meaningful ratio)
 min_read_count_for_ratio_analysis: 10
+
+# Performance Analysis Thresholds
+
+# Duration threshold in milliseconds for identifying slow queries
+# Conservative: 500.0 (only significantly slow queries are flagged)
+slow_query_duration_threshold_ms: 500.0

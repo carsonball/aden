@@ -43,6 +43,10 @@ public class ThresholdConfig {
     @JsonProperty("min_read_count_for_ratio_analysis")
     private int minReadCountForRatioAnalysis = 2;
     
+    // Performance analysis thresholds
+    @JsonProperty("slow_query_duration_threshold_ms")
+    private double slowQueryDurationThresholdMs = 100.0;
+    
     /**
      * Create discovery-appropriate default thresholds.
      * These values are tuned to be sensitive enough for discovery scenarios

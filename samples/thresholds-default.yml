@@ -59,3 +59,9 @@ medium_read_ratio_threshold: 2.5
 # Minimum read count required before analyzing read/write ratios
 # Discovery default: 2 (avoid analyzing entities with minimal reads)
 min_read_count_for_ratio_analysis: 2
+
+# Performance Analysis Thresholds
+
+# Duration threshold in milliseconds for identifying slow queries
+# Discovery default: 100.0 (queries taking more than 100ms are considered slow)
+slow_query_duration_threshold_ms: 100.0

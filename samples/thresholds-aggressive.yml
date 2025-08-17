@@ -58,3 +58,9 @@ medium_read_ratio_threshold: 1.2
 # Minimum read count required before analyzing read/write ratios
 # Aggressive: 1 (analyze everything with reads)
 min_read_count_for_ratio_analysis: 1
+
+# Performance Analysis Thresholds
+
+# Duration threshold in milliseconds for identifying slow queries
+# Aggressive: 50.0 (catch even moderately slow queries)
+slow_query_duration_threshold_ms: 50.0
