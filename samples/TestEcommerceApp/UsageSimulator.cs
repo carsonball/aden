@@ -39,6 +39,7 @@ namespace TestEcommerceApp
             RunDateBasedReportingScenario();
             RunProductCatalogScenario();
             RunOrderItemsScenario();
+            RunManyToManyScenario();
             
             // Force Query Store to capture all queries
             ForceQueryStoreFlush();
@@ -312,6 +313,122 @@ namespace TestEcommerceApp
             Console.WriteLine("  - Order+Customer+OrderItem+Product queries: 450 total executions");
             Console.WriteLine("  - Customer-centric access patterns with order items");
             Console.WriteLine("  - Strong denormalization candidate for single-table design");
+        }
+
+        private void RunManyToManyScenario()
+        {
+            Console.WriteLine("\n=== Product-Category Many-to-Many DynamoDB Candidate Simulation ===");
+            var categoryService = new CategoryService(_context);
+            var productService = new ProductService(_context);
+            var scenarioStopwatch = Stopwatch.StartNew();
+
+            // Get available categories and products for realistic simulation
+            var categories = _context.Category.ToList();
+            var products = _context.Product.ToList();
+
+            if (!categories.Any() || !products.Any())
+            {
+                Console.WriteLine("No categories or products found - skipping many-to-many scenario");
+                return;
+            }
+
+            // HIGH FREQUENCY: Category with products queries (200 calls)
+            // This creates Product+Category co-access patterns above threshold (50+)
+            Console.WriteLine("Running GetCategoryWithProducts() queries (200x)...");
+            for (int i = 0; i < 200; i++)
+            {
+                var randomCategory = categories[_random.Next(categories.Count)];
+                categoryService.GetCategoryWithProducts(randomCategory.Id);
+
+                if ((i + 1) % 40 == 0)
+                {
+                    Console.WriteLine($"  Completed {i + 1}/200 category+products queries");
+                }
+
+                Thread.Sleep(_random.Next(20, 81));
+            }
+
+            // HIGH FREQUENCY: Categories with product counts (150 calls)
+            // This demonstrates always-together pattern for Product+Category
+            Console.WriteLine("Running GetCategoriesWithProductCounts() queries (150x)...");
+            for (int i = 0; i < 150; i++)
+            {
+                categoryService.GetCategoriesWithProductCounts();
+
+                if ((i + 1) % 30 == 0)
+                {
+                    Console.WriteLine($"  Completed {i + 1}/150 category product count queries");
+                }
+
+                Thread.Sleep(_random.Next(25, 101));
+            }
+
+            // MEDIUM FREQUENCY: Products in multiple categories (100 calls)
+            // This creates complex many-to-many access patterns
+            Console.WriteLine("Running GetProductsInCategories() multi-category queries (100x)...");
+            for (int i = 0; i < 100; i++)
+            {
+                var categoryCount = _random.Next(2, Math.Min(5, categories.Count));
+                var selectedCategories = categories.OrderBy(x => _random.Next()).Take(categoryCount).Select(c => c.Id).ToList();
+                categoryService.GetProductsInCategories(selectedCategories);
+
+                if ((i + 1) % 20 == 0)
+                {
+                    Console.WriteLine($"  Completed {i + 1}/100 multi-category product queries");
+                }
+
+                Thread.Sleep(_random.Next(30, 121));
+            }
+
+            // MEDIUM FREQUENCY: Related categories queries (75 calls)
+            // This demonstrates complex many-to-many relationship analysis
+            Console.WriteLine("Running GetRelatedCategories() queries (75x)...");
+            for (int i = 0; i < 75; i++)
+            {
+                var randomCategory = categories[_random.Next(categories.Count)];
+                categoryService.GetRelatedCategories(randomCategory.Id);
+
+                if ((i + 1) % 15 == 0)
+                {
+                    Console.WriteLine($"  Completed {i + 1}/75 related category queries");
+                }
+
+                Thread.Sleep(_random.Next(35, 141));
+            }
+
+            // LOW FREQUENCY: Category product modifications (25 calls)
+            // Shows read:write ratio for many-to-many relationships
+            Console.WriteLine("Running AddProductToCategory() modification calls (25x)...");
+            for (int i = 0; i < 25; i++)
+            {
+                var randomProduct = products[_random.Next(products.Count)];
+                var randomCategory = categories[_random.Next(categories.Count)];
+                
+                try
+                {
+                    categoryService.AddProductToCategory(randomProduct.Id, randomCategory.Id);
+                }
+                catch
+                {
+                    // Ignore duplicate relationship errors for simulation
+                }
+
+                if ((i + 1) % 5 == 0)
+                {
+                    Console.WriteLine($"  Completed {i + 1}/25 many-to-many modifications");
+                }
+
+                Thread.Sleep(_random.Next(50, 201));
+            }
+
+            scenarioStopwatch.Stop();
+            Console.WriteLine($"\nMany-to-Many scenario completed in: {scenarioStopwatch.Elapsed:mm\\:ss}");
+            Console.WriteLine("Expected Query Store results:");
+            Console.WriteLine("  - Product+Category queries: 550 total executions (well above 100 threshold)");
+            Console.WriteLine("  - Product+Category co-access: 350+ times (above 50 co-access threshold)");
+            Console.WriteLine("  - Always-together pattern: 95%+ queries include both Product and Category");
+            Console.WriteLine("  - Read:Write ratio: 21:1 (525 reads : 25 writes, above 3.0 threshold)");
+            Console.WriteLine("  - Strong many-to-many denormalization candidate for DynamoDB GSI pattern");
         }
     }
 }

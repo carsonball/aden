@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -6,19 +6,18 @@ using System.Threading.Tasks;
 
 namespace TestEcommerceApp.Models
 {
-    public class Product
+    public class Category
     {
         public int Id { get; set; }
         public string Name { get; set; }
-        public decimal Price { get; set; }
-        public string Category { get; set; }
         public string Description { get; set; }
+        public DateTime CreatedDate { get; set; }
 
-        public virtual ICollection<Category> Categories { get; set; }
+        public virtual ICollection<Product> Products { get; set; }
 
-        public Product()
+        public Category()
         {
-            Categories = new HashSet<Category>();
+            Products = new HashSet<Product>();
         }
     }
 }

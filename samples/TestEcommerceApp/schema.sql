@@ -29,6 +29,23 @@ CREATE TABLE Product (
     Category nvarchar(50)
 );
 
+CREATE TABLE Category (
+    Id int IDENTITY(1,1) PRIMARY KEY,
+    Name nvarchar(100) NOT NULL,
+    Description nvarchar(500),
+    CreatedDate datetime NOT NULL
+);
+
+CREATE TABLE ProductCategory (
+    ProductId int NOT NULL,
+    CategoryId int NOT NULL,
+    PRIMARY KEY (ProductId, CategoryId),
+    CONSTRAINT FK_ProductCategory_Product FOREIGN KEY (ProductId) 
+        REFERENCES Product(Id),
+    CONSTRAINT FK_ProductCategory_Category FOREIGN KEY (CategoryId) 
+        REFERENCES Category(Id)
+);
+
 CREATE TABLE OrderItem (
     Id int IDENTITY(1,1) PRIMARY KEY,
     OrderId int NOT NULL,
@@ -60,3 +77,10 @@ INCLUDE (Name);
 CREATE NONCLUSTERED INDEX IX_OrderItem_OrderId_ProductId
 ON OrderItem (OrderId, ProductId)
 INCLUDE (Quantity, Price);
+
+-- Many-to-many relationship indices for Product-Category access patterns
+CREATE NONCLUSTERED INDEX IX_ProductCategory_CategoryId_ProductId
+ON ProductCategory (CategoryId, ProductId);
+
+CREATE NONCLUSTERED INDEX IX_ProductCategory_ProductId_CategoryId
+ON ProductCategory (ProductId, CategoryId);

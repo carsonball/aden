@@ -66,52 +66,56 @@ PRINT '=== JSON Export (Copy this content to a .json file) ==='
 
 -- Build JSON export using SQL Server JSON functions
 DECLARE @JsonOutput NVARCHAR(MAX)
+DECLARE @MetadataJson NVARCHAR(MAX)
+DECLARE @QueriesJson NVARCHAR(MAX)
 
-SET @JsonOutput = (
+-- Build metadata JSON separately
+SET @MetadataJson = (
     SELECT 
-        (
-            SELECT 
-                @DatabaseName as database_name,
-                @ExportTimestamp as export_timestamp,
-                @SQLServerVersion as sql_server_version,
-                @QueryStoreEnabled as query_store_enabled,
-                @TotalQueries as total_queries
-            FOR JSON PATH, WITHOUT_ARRAY_WRAPPER
-        ) as export_metadata,
-        (
-            SELECT TOP (@MaxQueries)
-                CAST(q.query_id AS NVARCHAR(50)) as query_id,
-                -- Clean and sanitize SQL text
-                LEFT(LTRIM(RTRIM(
-                    REPLACE(
-                        REPLACE(
-                            REPLACE(qt.query_sql_text, CHAR(13), ' '), 
-                            CHAR(10), ' '
-                        ), 
-                        CHAR(9), ' '
-                    )
-                )), 2000) as sql_text,
-                SUM(rs.count_executions) as execution_count,
-                ROUND(AVG(rs.avg_duration / 1000.0), 3) as avg_duration_ms,
-                ROUND(AVG(rs.avg_cpu_time / 1000.0), 3) as avg_cpu_ms,
-                ROUND(AVG(rs.avg_logical_io_reads), 2) as avg_logical_reads
-            FROM sys.query_store_query q
-            JOIN sys.query_store_query_text qt ON q.query_text_id = qt.query_text_id
-            JOIN sys.query_store_plan p ON p.query_id = q.query_id
-            JOIN sys.query_store_runtime_stats rs ON rs.plan_id = p.plan_id
-            WHERE qt.query_sql_text NOT LIKE '%sys.%'
-              AND qt.query_sql_text NOT LIKE '%INFORMATION_SCHEMA%'
-              AND qt.query_sql_text NOT LIKE '%query_store%'
-              AND qt.query_sql_text NOT LIKE '%sp_help%'
-              AND qt.query_sql_text NOT LIKE '%EXEC sp_%'
-              AND LEN(qt.query_sql_text) > 20
-              AND rs.count_executions >= @MinExecutions
-            GROUP BY q.query_id, qt.query_sql_text
-            ORDER BY SUM(rs.count_executions) DESC
-            FOR JSON PATH
-        ) as queries
+        @DatabaseName as database_name,
+        @ExportTimestamp as export_timestamp,
+        @SQLServerVersion as sql_server_version,
+        @QueryStoreEnabled as query_store_enabled,
+        @TotalQueries as total_queries
     FOR JSON PATH, WITHOUT_ARRAY_WRAPPER
 )
+
+-- Build queries JSON separately
+SET @QueriesJson = (
+    SELECT TOP (@MaxQueries)
+        CAST(q.query_id AS NVARCHAR(50)) as query_id,
+        -- Clean and sanitize SQL text
+        LEFT(LTRIM(RTRIM(
+            REPLACE(
+                REPLACE(
+                    REPLACE(qt.query_sql_text, CHAR(13), ' '), 
+                    CHAR(10), ' '
+                ), 
+                CHAR(9), ' '
+            )
+        )), 2000) as sql_text,
+        SUM(rs.count_executions) as execution_count,
+        ROUND(AVG(rs.avg_duration / 1000.0), 3) as avg_duration_ms,
+        ROUND(AVG(rs.avg_cpu_time / 1000.0), 3) as avg_cpu_ms,
+        ROUND(AVG(rs.avg_logical_io_reads), 2) as avg_logical_reads
+    FROM sys.query_store_query q
+    JOIN sys.query_store_query_text qt ON q.query_text_id = qt.query_text_id
+    JOIN sys.query_store_plan p ON p.query_id = q.query_id
+    JOIN sys.query_store_runtime_stats rs ON rs.plan_id = p.plan_id
+    WHERE qt.query_sql_text NOT LIKE '%sys.%'
+      AND qt.query_sql_text NOT LIKE '%INFORMATION_SCHEMA%'
+      AND qt.query_sql_text NOT LIKE '%query_store%'
+      AND qt.query_sql_text NOT LIKE '%sp_help%'
+      AND qt.query_sql_text NOT LIKE '%EXEC sp_%'
+      AND LEN(qt.query_sql_text) > 20
+      AND rs.count_executions >= @MinExecutions
+    GROUP BY q.query_id, qt.query_sql_text
+    ORDER BY SUM(rs.count_executions) DESC
+    FOR JSON PATH
+)
+
+-- Combine into final JSON structure
+SET @JsonOutput = '{"export_metadata":' + @MetadataJson + ',"queries":' + ISNULL(@QueriesJson, '[]') + '}'
 
 -- Output the JSON
 PRINT @JsonOutput
