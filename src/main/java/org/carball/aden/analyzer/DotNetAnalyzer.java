@@ -22,7 +22,6 @@ import java.util.Map;
 public class DotNetAnalyzer {
 
     private final DotNetAnalyzerConfig config;
-    private final SchemaParser schemaParser;
     private final EFModelParser efParser;
     private final LinqAnalyzer linqAnalyzer;
     private final DotNetPatternAnalyzer patternAnalyzer;
@@ -35,8 +34,7 @@ public class DotNetAnalyzer {
         // Get threshold configuration from config, use defaults if not provided
         ThresholdConfig thresholdConfig = config.getThresholdConfig() != null ?
                 config.getThresholdConfig() : ThresholdConfig.createDiscoveryDefaults();
-        
-        this.schemaParser = new SchemaParser();
+
         this.efParser = new EFModelParser();
         this.linqAnalyzer = new LinqAnalyzer();
         this.patternAnalyzer = new DotNetPatternAnalyzer(thresholdConfig);
@@ -57,7 +55,7 @@ public class DotNetAnalyzer {
         if (config.isVerbose()) {
             System.out.println("  - Parsing database schema...");
         }
-        DatabaseSchema schema = schemaParser.parseDDL(config.getSchemaFile());
+        DatabaseSchema schema = SchemaParser.parseDDL(config.getSchemaFile());
         this.currentSchema = schema; // Store for later use in recommendations
         log.info("Parsed {} tables and {} relationships from schema",
                 schema.getTables().size(), schema.getRelationships().size());
@@ -82,10 +80,9 @@ public class DotNetAnalyzer {
         }
         Map<String, String> dbSetMapping = efParser.getDbSetPropertyToEntityMap();
         AnalysisResult result = patternAnalyzer.analyzePatterns(entities, queryPatterns, schema, dbSetMapping, productionMetrics);
-        result.setQueryPatterns(queryPatterns); // Store query patterns in result
 
         log.info("Analysis complete. Identified {} denormalization candidates",
-                result.getDenormalizationCandidates().size());
+                result.denormalizationCandidates().size());
 
         return result;
     }
@@ -99,7 +96,7 @@ public class DotNetAnalyzer {
                                                             List<QueryPattern> queryPatterns,
                                                             QueryStoreAnalysis productionMetrics) {
         log.info("Generating AI-powered recommendations for {} candidates",
-                result.getDenormalizationCandidates().size());
+                result.denormalizationCandidates().size());
         
         if (productionMetrics != null) {
             log.info("Including production metrics from Query Store in recommendation generation");
@@ -107,7 +104,7 @@ public class DotNetAnalyzer {
 
         // Use stored schema if schema parameter is null
         DatabaseSchema schemaToUse = (schema != null) ? schema : this.currentSchema;
-        List<QueryPattern> patternsToUse = (queryPatterns != null) ? queryPatterns : result.getQueryPatterns();
+        List<QueryPattern> patternsToUse = (queryPatterns != null) ? queryPatterns : result.queryPatterns();
         
         List<NoSQLRecommendation> recommendations = jsonRecommendationEngine.generateRecommendations(
             result, schemaToUse, patternsToUse, productionMetrics);

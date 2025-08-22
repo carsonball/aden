@@ -191,8 +191,6 @@ public class JsonRecommendationEngineTest {
     }
 
     private AnalysisResult createSampleAnalysis() {
-        AnalysisResult result = new AnalysisResult();
-        
         DenormalizationCandidate customer = DenormalizationCandidate.builder()
                 .primaryEntity("Customer")
                 .relatedEntities(Arrays.asList("Order", "Address"))
@@ -211,11 +209,7 @@ public class JsonRecommendationEngineTest {
                 .recommendedTarget(NoSQLTarget.DYNAMODB)
                 .build();
         
-        result.setDenormalizationCandidates(Arrays.asList(customer, product));
-        result.setUsageProfiles(new HashMap<>());
-        result.setQueryPatterns(new ArrayList<>());
-        
-        return result;
+        return new AnalysisResult(Arrays.asList(customer, product), new HashMap<>(), new ArrayList<>());
     }
     
     private void validateResponse(RecommendationResponse response) {

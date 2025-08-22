@@ -26,10 +26,9 @@ public class MinimalTests {
     public void shouldParseSimpleTable() {
         // Given
         String ddl = "CREATE TABLE Customer (Id int PRIMARY KEY, Name nvarchar(100))";
-        SchemaParser parser = new SchemaParser();
 
         // When
-        DatabaseSchema schema = parser.parseDDL(ddl);
+        DatabaseSchema schema = SchemaParser.parseDDL(ddl);
 
         // Then
         assertThat(schema.getTables()).hasSize(1);
@@ -104,12 +103,12 @@ public class MinimalTests {
 
         // Then - Verify components work together
         assertThat(result).isNotNull();
-        assertThat(result.getUsageProfiles()).isNotEmpty();
-        assertThat(result.getUsageProfiles()).containsKey("Customer");
-        assertThat(result.getQueryPatterns()).isNotEmpty();
+        assertThat(result.usageProfiles()).isNotEmpty();
+        assertThat(result.usageProfiles()).containsKey("Customer");
+        assertThat(result.queryPatterns()).isNotEmpty();
 
         // Should detect the Include pattern
-        assertThat(result.getQueryPatterns()).anyMatch(p ->
+        assertThat(result.queryPatterns()).anyMatch(p ->
                 p.getTargetEntity().contains("Customer") &&
                         p.getType().contains("EAGER_LOADING")
         );
@@ -119,8 +118,7 @@ public class MinimalTests {
     @Test
     public void shouldIdentifyDenormalizationCandidate() {
         // Given
-        SchemaParser schemaParser = new SchemaParser();
-        DatabaseSchema schema = schemaParser.parseDDL(
+        DatabaseSchema schema = SchemaParser.parseDDL(
                 "CREATE TABLE Customer (Id int PRIMARY KEY);"
         );
 
@@ -150,8 +148,8 @@ public class MinimalTests {
         );
 
         // Then
-        assertThat(result.getDenormalizationCandidates()).isNotEmpty();
-        assertThat(result.getDenormalizationCandidates().get(0).getPrimaryEntity())
+        assertThat(result.denormalizationCandidates()).isNotEmpty();
+        assertThat(result.denormalizationCandidates().get(0).getPrimaryEntity())
                 .isEqualTo("Customer");
     }
 }

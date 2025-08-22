@@ -20,9 +20,7 @@ public class JsonPromptBuilderTest {
     public void setUp() {
         System.setProperty("skip.ai", "true");
         engine = new JsonRecommendationEngine("test-key");
-        analysisResult = new AnalysisResult();
-        analysisResult.setDenormalizationCandidates(new ArrayList<>());
-        analysisResult.setQueryPatterns(new ArrayList<>());
+        analysisResult = new AnalysisResult(new ArrayList<>(), new HashMap<>(), new ArrayList<>());
     }
     
     @Test
@@ -44,7 +42,7 @@ public class JsonPromptBuilderTest {
         profile.setReadCount(1000);
         profile.setWriteCount(100);
         
-        analysisResult.getUsageProfiles().put("Customer", profile);
+        analysisResult.usageProfiles().put("Customer", profile);
         
         // Create denormalization candidate
         DenormalizationCandidate candidate = DenormalizationCandidate.builder()
@@ -56,7 +54,7 @@ public class JsonPromptBuilderTest {
                 .recommendedTarget(NoSQLTarget.DYNAMODB)
                 .build();
         
-        analysisResult.getDenormalizationCandidates().add(candidate);
+        analysisResult.denormalizationCandidates().add(candidate);
         
         // Generate recommendations (with skip.ai=true, it will use fallback)
         List<NoSQLRecommendation> recommendations = engine.generateRecommendations(
@@ -78,7 +76,7 @@ public class JsonPromptBuilderTest {
         profile.setReadCount(500);
         profile.setWriteCount(50);
         
-        analysisResult.getUsageProfiles().put("Product", profile);
+        analysisResult.usageProfiles().put("Product", profile);
         
         DenormalizationCandidate candidate = DenormalizationCandidate.builder()
                 .primaryEntity("Product")
@@ -89,7 +87,7 @@ public class JsonPromptBuilderTest {
                 .recommendedTarget(NoSQLTarget.DYNAMODB)
                 .build();
         
-        analysisResult.getDenormalizationCandidates().add(candidate);
+        analysisResult.denormalizationCandidates().add(candidate);
         
         List<NoSQLRecommendation> recommendations = engine.generateRecommendations(
                 analysisResult, null, null, null);
@@ -110,7 +108,7 @@ public class JsonPromptBuilderTest {
         profile.setReadCount(1000);
         profile.setWriteCount(100);
         
-        analysisResult.getUsageProfiles().put("Customer", profile);
+        analysisResult.usageProfiles().put("Customer", profile);
         
         DenormalizationCandidate candidate = DenormalizationCandidate.builder()
                 .primaryEntity("Customer")
@@ -121,7 +119,7 @@ public class JsonPromptBuilderTest {
                 .recommendedTarget(NoSQLTarget.DYNAMODB)
                 .build();
         
-        analysisResult.getDenormalizationCandidates().add(candidate);
+        analysisResult.denormalizationCandidates().add(candidate);
         
         List<NoSQLRecommendation> recommendations = engine.generateRecommendations(
                 analysisResult, null, null, null);
@@ -144,7 +142,7 @@ public class JsonPromptBuilderTest {
         profile.setReadCount(750);
         profile.setWriteCount(75);
         
-        analysisResult.getUsageProfiles().put("Order", profile);
+        analysisResult.usageProfiles().put("Order", profile);
         
         DenormalizationCandidate candidate = DenormalizationCandidate.builder()
                 .primaryEntity("Order")
@@ -155,7 +153,7 @@ public class JsonPromptBuilderTest {
                 .recommendedTarget(NoSQLTarget.DOCUMENTDB)
                 .build();
         
-        analysisResult.getDenormalizationCandidates().add(candidate);
+        analysisResult.denormalizationCandidates().add(candidate);
         
         List<NoSQLRecommendation> recommendations = engine.generateRecommendations(
                 analysisResult, null, null, null);
@@ -181,7 +179,7 @@ public class JsonPromptBuilderTest {
         profile.setReadCount(500);
         profile.setWriteCount(100);
         
-        analysisResult.getUsageProfiles().put("User", profile);
+        analysisResult.usageProfiles().put("User", profile);
         
         DenormalizationCandidate candidate = DenormalizationCandidate.builder()
                 .primaryEntity("User")
@@ -192,7 +190,7 @@ public class JsonPromptBuilderTest {
                 .recommendedTarget(NoSQLTarget.DYNAMODB)
                 .build();
         
-        analysisResult.getDenormalizationCandidates().add(candidate);
+        analysisResult.denormalizationCandidates().add(candidate);
         
         List<NoSQLRecommendation> recommendations = engine.generateRecommendations(
                 analysisResult, null, null, null);

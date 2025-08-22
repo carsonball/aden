@@ -44,9 +44,9 @@ public class PatternAnalysisTest {
         );
 
         // Then: should recommend denormalization
-        assertThat(result.getDenormalizationCandidates()).hasSize(1);
+        assertThat(result.denormalizationCandidates()).hasSize(1);
 
-        DenormalizationCandidate candidate = result.getDenormalizationCandidates().get(0);
+        DenormalizationCandidate candidate = result.denormalizationCandidates().get(0);
         assertThat(candidate.getPrimaryEntity()).isEqualTo("Customer");
         assertThat(candidate.getRecommendedTarget()).isEqualTo(NoSQLTarget.DYNAMODB);
     }
@@ -76,8 +76,8 @@ public class PatternAnalysisTest {
         );
 
         // Then: should have appropriate complexity
-        assertThat(result.getDenormalizationCandidates()).isNotEmpty();
-        DenormalizationCandidate candidate = result.getDenormalizationCandidates().get(0);
+        assertThat(result.denormalizationCandidates()).isNotEmpty();
+        DenormalizationCandidate candidate = result.denormalizationCandidates().get(0);
         assertThat(candidate.getComplexity()).isEqualTo(MigrationComplexity.LOW);
     }
 
@@ -112,8 +112,8 @@ public class PatternAnalysisTest {
         );
 
         // Then: should match query pattern to entity correctly
-        assertThat(result.getDenormalizationCandidates()).hasSize(1);
-        DenormalizationCandidate candidate = result.getDenormalizationCandidates().get(0);
+        assertThat(result.denormalizationCandidates()).hasSize(1);
+        DenormalizationCandidate candidate = result.denormalizationCandidates().get(0);
         assertThat(candidate.getPrimaryEntity()).isEqualTo("Customer");
     }
 
@@ -148,8 +148,8 @@ public class PatternAnalysisTest {
         );
 
         // Then: should still match correctly using the mapping
-        assertThat(result.getDenormalizationCandidates()).hasSize(1);
-        DenormalizationCandidate candidate = result.getDenormalizationCandidates().get(0);
+        assertThat(result.denormalizationCandidates()).hasSize(1);
+        DenormalizationCandidate candidate = result.denormalizationCandidates().get(0);
         assertThat(candidate.getPrimaryEntity()).isEqualTo("Order");
     }
 
@@ -183,8 +183,8 @@ public class PatternAnalysisTest {
         );
 
         // Then: should fall back to direct matching
-        assertThat(result.getDenormalizationCandidates()).hasSize(1);
-        DenormalizationCandidate candidate = result.getDenormalizationCandidates().get(0);
+        assertThat(result.denormalizationCandidates()).hasSize(1);
+        DenormalizationCandidate candidate = result.denormalizationCandidates().get(0);
         assertThat(candidate.getPrimaryEntity()).isEqualTo("Customer");
     }
 }

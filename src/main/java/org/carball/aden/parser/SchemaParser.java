@@ -7,6 +7,7 @@ import net.sf.jsqlparser.statement.Statement;
 import net.sf.jsqlparser.statement.Statements;
 import net.sf.jsqlparser.statement.create.table.*;
 import org.carball.aden.model.schema.*;
+import org.carball.aden.model.schema.Index;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -17,12 +18,16 @@ import java.util.stream.Collectors;
 @Slf4j
 public class SchemaParser {
 
-    public DatabaseSchema parseDDL(Path ddlFile) throws IOException {
+    private SchemaParser() {
+        // Utility class - prevent instantiation
+    }
+
+    public static DatabaseSchema parseDDL(Path ddlFile) throws IOException {
         String content = Files.readString(ddlFile);
         return parseDDL(content);
     }
 
-    public DatabaseSchema parseDDL(String ddlContent) {
+    public static DatabaseSchema parseDDL(String ddlContent) {
         DatabaseSchema schema = new DatabaseSchema();
 
         try {
@@ -34,9 +39,8 @@ public class SchemaParser {
 
             // First pass: Create all tables
             for (Statement statement : statements.getStatements()) {
-                if (statement instanceof CreateTable) {
-                    CreateTable createTable = (CreateTable) statement;
-                    org.carball.aden.model.schema.Table table = convertTable(createTable);
+                if (statement instanceof CreateTable createTable) {
+                    Table table = convertTable(createTable);
                     schema.addTable(table);
                     log.debug("Parsed table: {}", table.getName());
                 }
@@ -44,11 +48,13 @@ public class SchemaParser {
 
             // Second pass: Extract relationships from foreign keys
             for (Statement statement : statements.getStatements()) {
-                if (statement instanceof CreateTable) {
-                    CreateTable createTable = (CreateTable) statement;
+                if (statement instanceof CreateTable createTable) {
                     extractRelationships(createTable, schema);
                 }
             }
+
+            // Third pass: Create MANY_TO_MANY relationships for junction tables
+            createManyToManyRelationships(schema);
 
         } catch (JSQLParserException e) {
             log.error("Error parsing DDL: {}", e.getMessage());
@@ -58,10 +64,10 @@ public class SchemaParser {
         return schema;
     }
 
-    private String preprocessDDL(String ddlContent) {
+    private static String preprocessDDL(String ddlContent) {
         // Remove SQL Server bracket identifiers to make DDL compatible with JSqlParser
         // This handles cases like CREATE TABLE [Order] and REFERENCES [Order](Id)
-        String processed = ddlContent.replaceAll("\\[([^\\]]+)\\]", "$1");
+        String processed = ddlContent.replaceAll("\\[([^]]+)]", "$1");
         
         // Handle SQL Server function calls in DEFAULT clauses that JSqlParser doesn't support
         // Replace DEFAULT (FUNCTION()) with DEFAULT 'FUNCTION()' to make it parseable
@@ -78,14 +84,27 @@ public class SchemaParser {
         return processed;
     }
 
-    private org.carball.aden.model.schema.Table convertTable(CreateTable createTable) {
+    private static Table convertTable(CreateTable createTable) {
         String tableName = cleanTableName(createTable.getTable());
-        org.carball.aden.model.schema.Table table = new org.carball.aden.model.schema.Table(tableName);
+        Table table = new Table(tableName);
 
         if (createTable.getColumnDefinitions() != null) {
             for (ColumnDefinition colDef : createTable.getColumnDefinitions()) {
                 Column column = convertColumn(colDef);
                 table.addColumn(column);
+                
+                // Create unique index for UNIQUE columns
+                if (colDef.getColumnSpecs() != null && 
+                    colDef.getColumnSpecs().stream().anyMatch(spec -> spec.equalsIgnoreCase("UNIQUE"))) {
+                    String columnName = cleanIdentifier(colDef.getColumnName());
+                    Index uniqueIndex = Index.builder()
+                            .name("UQ_" + tableName + "_" + columnName)
+                            .columns(List.of(columnName))
+                            .unique(true)
+                            .clustered(false)
+                            .build();
+                    table.addIndex(uniqueIndex);
+                }
             }
         }
 
@@ -103,7 +122,7 @@ public class SchemaParser {
         return table;
     }
 
-    private Column convertColumn(ColumnDefinition colDef) {
+    private static Column convertColumn(ColumnDefinition colDef) {
         Column.ColumnBuilder builder = Column.builder()
                 .name(cleanIdentifier(colDef.getColumnName()))
                 .dataType(colDef.getColDataType().getDataType())
@@ -116,16 +135,17 @@ public class SchemaParser {
                 String spec = specs.get(i);
                 String upperSpec = spec.toUpperCase();
 
-                if (upperSpec.contains("NOT") && upperSpec.contains("NULL")) {
-                    builder.nullable(false);
-                } else if (upperSpec.equals("NOT NULL")) {
+                if (upperSpec.equals("NOT NULL")) {
                     builder.nullable(false);
                 } else if (upperSpec.equals("NOT") && i + 1 < specs.size() && 
-                          specs.get(i + 1).toUpperCase().equals("NULL")) {
+                      specs.get(i + 1).equalsIgnoreCase("NULL")) {
                     // Handle "NOT" "NULL" as separate specs
                     builder.nullable(false);
                 } else if (upperSpec.equals("PRIMARY") || upperSpec.contains("PRIMARY KEY")) {
                     builder.primaryKey(true);
+                } else if (upperSpec.equals("UNIQUE")) {
+                    // Mark column as unique - we'll create a unique index for it
+                    // This will be handled in the table processing
                 } else if (upperSpec.contains("DEFAULT")) {
                     // Extract default value if available
                     builder.defaultValue(spec);
@@ -138,10 +158,10 @@ public class SchemaParser {
         return builder.build();
     }
 
-    private void processPrimaryKey(net.sf.jsqlparser.statement.create.table.Index index, org.carball.aden.model.schema.Table table) {
+    private static void processPrimaryKey(net.sf.jsqlparser.statement.create.table.Index index, Table table) {
         List<String> pkColumns = index.getColumns().stream()
                 .map(net.sf.jsqlparser.statement.create.table.Index.ColumnParams::getColumnName)
-                .map(this::cleanIdentifier)
+                .map(SchemaParser::cleanIdentifier)
                 .collect(Collectors.toList());
 
         if (pkColumns.size() == 1) {
@@ -156,8 +176,8 @@ public class SchemaParser {
                     });
         } else {
             // Composite primary key - create as index
-            org.carball.aden.model.schema.Index compositeIndex =
-                    org.carball.aden.model.schema.Index.builder()
+            Index compositeIndex =
+                    Index.builder()
                             .name("PK_" + table.getName())
                             .columns(pkColumns)
                             .unique(true)
@@ -167,14 +187,14 @@ public class SchemaParser {
         }
     }
 
-    private void processIndex(net.sf.jsqlparser.statement.create.table.Index index, org.carball.aden.model.schema.Table table) {
+    private static void processIndex(net.sf.jsqlparser.statement.create.table.Index index, Table table) {
         List<String> indexColumns = index.getColumns().stream()
                 .map(net.sf.jsqlparser.statement.create.table.Index.ColumnParams::getColumnName)
-                .map(this::cleanIdentifier)
+                .map(SchemaParser::cleanIdentifier)
                 .collect(Collectors.toList());
 
-        org.carball.aden.model.schema.Index tableIndex =
-                org.carball.aden.model.schema.Index.builder()
+        Index tableIndex =
+                Index.builder()
                         .name(index.getName() != null ? index.getName() : "IX_" + String.join("_", indexColumns))
                         .columns(indexColumns)
                         .unique("UNIQUE".equalsIgnoreCase(index.getType()))
@@ -184,7 +204,7 @@ public class SchemaParser {
         table.addIndex(tableIndex);
     }
 
-    private void extractRelationships(CreateTable createTable, DatabaseSchema schema) {
+    private static void extractRelationships(CreateTable createTable, DatabaseSchema schema) {
         String tableName = cleanTableName(createTable.getTable());
 
         // Check column definitions for foreign key constraints
@@ -199,17 +219,15 @@ public class SchemaParser {
         // Check table-level foreign key constraints
         if (createTable.getIndexes() != null) {
             for (net.sf.jsqlparser.statement.create.table.Index index : createTable.getIndexes()) {
-                if (index instanceof ForeignKeyIndex) {
-                    ForeignKeyIndex fkIndex = (ForeignKeyIndex) index;
+                if (index instanceof ForeignKeyIndex fkIndex) {
                     processForeignKey(tableName, fkIndex, schema);
                 }
             }
         }
     }
 
-    private void extractForeignKeyFromSpecs(String tableName, ColumnDefinition colDef, DatabaseSchema schema) {
+    private static void extractForeignKeyFromSpecs(String tableName, ColumnDefinition colDef, DatabaseSchema schema) {
         String columnName = cleanIdentifier(colDef.getColumnName());
-
 
         List<String> specs = colDef.getColumnSpecs();
         for (int i = 0; i < specs.size(); i++) {
@@ -235,6 +253,7 @@ public class SchemaParser {
                     }
                 }
             }
+
             // Check for REFERENCES as separate spec (JSqlParser tokenized format)
             else if (spec.equalsIgnoreCase("REFERENCES") && i + 1 < specs.size()) {
                 String referencedTable = cleanIdentifier(specs.get(i + 1));
@@ -252,15 +271,17 @@ public class SchemaParser {
         }
     }
 
-    private void createForeignKeyRelationship(DatabaseSchema schema, String tableName, String columnName, 
+    private static void createForeignKeyRelationship(DatabaseSchema schema, String tableName, String columnName,
                                             String referencedTable, String referencedColumn) {
+        RelationshipType relationshipType = determineRelationshipType(schema, tableName, columnName, referencedTable, referencedColumn);
+        
         Relationship relationship = Relationship.builder()
                 .name("FK_" + tableName + "_" + referencedTable)
                 .fromTable(tableName)
                 .fromColumn(columnName)
                 .toTable(referencedTable)
                 .toColumn(referencedColumn)
-                .type(RelationshipType.MANY_TO_ONE)
+                .type(relationshipType)
                 .build();
 
         schema.addRelationship(relationship);
@@ -269,7 +290,7 @@ public class SchemaParser {
         updateColumnForeignKey(schema, tableName, columnName, referencedTable, referencedColumn);
     }
 
-    private void processForeignKey(String tableName, ForeignKeyIndex fkIndex, DatabaseSchema schema) {
+    private static void processForeignKey(String tableName, ForeignKeyIndex fkIndex, DatabaseSchema schema) {
         String fkName = fkIndex.getName() != null ? fkIndex.getName() : "FK_" + tableName;
         net.sf.jsqlparser.schema.Table referencedTable = fkIndex.getTable();
         List<String> fromColumns = fkIndex.getColumnsNames();
@@ -281,13 +302,15 @@ public class SchemaParser {
             String toColumn = toColumns != null && !toColumns.isEmpty() ?
                     cleanIdentifier(toColumns.get(0)) : "Id";
 
+            RelationshipType relationshipType = determineRelationshipType(schema, tableName, fromColumn, toTableName, toColumn);
+
             Relationship relationship = Relationship.builder()
                     .name(fkName)
                     .fromTable(tableName)
                     .fromColumn(fromColumn)
                     .toTable(toTableName)
                     .toColumn(toColumn)
-                    .type(RelationshipType.MANY_TO_ONE)
+                    .type(relationshipType)
                     .build();
 
             schema.addRelationship(relationship);
@@ -297,10 +320,154 @@ public class SchemaParser {
         }
     }
 
-    private void updateColumnForeignKey(DatabaseSchema schema, String tableName,
+    private static RelationshipType determineRelationshipType(DatabaseSchema schema, String tableName, 
+                                                            String columnName, String referencedTable, 
+                                                            String referencedColumn) {
+        Table fromTable = schema.findTable(tableName);
+        Table toTable = schema.findTable(referencedTable);
+        
+        if (fromTable == null || toTable == null) {
+            return RelationshipType.MANY_TO_ONE; // Default fallback
+        }
+
+        // Determine the "source side" of the relationship (ONE_* vs MANY_*)
+        boolean isSourceUnique = isColumnUniqueInTable(fromTable, columnName);
+        
+        // Determine the "target side" of the relationship (*_TO_ONE vs *_TO_MANY)  
+        boolean isTargetUnique = isColumnUniqueInTable(toTable, referencedColumn);
+        
+        // Combine source and target constraints to determine relationship type
+        if (isSourceUnique && isTargetUnique) {
+            return RelationshipType.ONE_TO_ONE;
+        } else if (isSourceUnique) {
+            return RelationshipType.ONE_TO_MANY;
+        } else if (isTargetUnique) {
+            return RelationshipType.MANY_TO_ONE;
+        } else {
+            // Both sides allow duplicates - this would be MANY_TO_MANY but that requires junction table
+            // For direct FK relationships, default to MANY_TO_ONE (most common case)
+            return RelationshipType.MANY_TO_ONE;
+        }
+    }
+
+    /**
+     * Determines if a column is unique in a table (either PK or has unique constraint)
+     */
+    private static boolean isColumnUniqueInTable(Table table, String columnName) {
+        // Check if column is primary key
+        Column column = table.getColumns().stream()
+                .filter(c -> c.getName().equalsIgnoreCase(columnName))
+                .findFirst().orElse(null);
+        
+        if (column != null && column.isPrimaryKey()) {
+            return true;
+        }
+        
+        // Check if column has unique constraint
+        return hasUniqueConstraint(table, columnName);
+    }
+
+    private static boolean isJunctionTable(Table table, DatabaseSchema schema) {
+        // A pure junction table typically has:
+        // 1. A composite primary key made up of exactly the foreign key columns
+        // 2. Usually only foreign key columns (no additional data columns)
+        // 3. At least 2 foreign key columns
+        
+        // Check if table has composite primary key
+        Index compositePK = table.getIndexes().stream()
+                .filter(idx -> idx.getName().startsWith("PK_") && idx.getColumns().size() >= 2)
+                .findFirst().orElse(null);
+        
+        if (compositePK == null) {
+            return false;
+        }
+        
+        // Count how many relationships reference this table (indicating foreign keys)
+        long relationshipCount = schema.getRelationships().stream()
+                .filter(rel -> rel.getFromTable().equals(table.getName()))
+                .count();
+        
+        // Must have at least 2 relationships
+        if (relationshipCount < 2) {
+            return false;
+        }
+        
+        // For a pure junction table, there should only be as many columns as there are foreign keys
+        // Simple heuristic: if table has exactly 2 columns and 2 relationships, likely junction table
+        long totalColumnCount = table.getColumns().size();
+        
+        return totalColumnCount == relationshipCount;
+    }
+
+    private static boolean hasUniqueConstraint(Table table, String columnName) {
+        // Check if column has a UNIQUE index
+        return table.getIndexes().stream()
+                .anyMatch(idx -> idx.isUnique() && 
+                               idx.getColumns().size() == 1 && 
+                               idx.getColumns().get(0).equalsIgnoreCase(columnName));
+    }
+
+    private static void createManyToManyRelationships(DatabaseSchema schema) {
+        // Find junction tables and create MANY_TO_MANY relationships
+        for (Table table : schema.getTables()) {
+            if (isJunctionTable(table, schema)) {
+                // First, adjust the individual FK relationship types to MANY_TO_ONE for junction tables
+                adjustJunctionTableRelationshipTypes(table, schema);
+                // Then create the MANY_TO_MANY relationships
+                createManyToManyFromJunctionTable(table, schema);
+            }
+        }
+    }
+
+    private static void adjustJunctionTableRelationshipTypes(Table junctionTable, DatabaseSchema schema) {
+        // Find all relationships from this junction table and change them to MANY_TO_ONE
+        schema.getRelationships().stream()
+                .filter(rel -> rel.getFromTable().equals(junctionTable.getName()))
+                .forEach(rel -> rel.setType(RelationshipType.MANY_TO_ONE));
+    }
+
+    private static void createManyToManyFromJunctionTable(Table junctionTable, DatabaseSchema schema) {
+        // Get all foreign key relationships from this junction table
+        List<Relationship> junctionRelationships = schema.getRelationships().stream()
+                .filter(rel -> rel.getFromTable().equals(junctionTable.getName()))
+                .toList();
+
+        // For junction tables, create MANY_TO_MANY relationships between all pairs of referenced tables
+        // This correctly handles the case where a junction table connects exactly 2 entities
+        for (int i = 0; i < junctionRelationships.size(); i++) {
+            for (int j = i + 1; j < junctionRelationships.size(); j++) {
+                Relationship rel1 = junctionRelationships.get(i);
+                Relationship rel2 = junctionRelationships.get(j);
+
+                // Create bidirectional MANY_TO_MANY relationships between the entity tables
+                Relationship manyToMany1 = Relationship.builder()
+                        .name("M2M_" + rel1.getToTable() + "_" + rel2.getToTable())
+                        .fromTable(rel1.getToTable())
+                        .fromColumn(rel1.getToColumn())
+                        .toTable(rel2.getToTable())
+                        .toColumn(rel2.getToColumn())
+                        .type(RelationshipType.MANY_TO_MANY)
+                        .build();
+
+                Relationship manyToMany2 = Relationship.builder()
+                        .name("M2M_" + rel2.getToTable() + "_" + rel1.getToTable())
+                        .fromTable(rel2.getToTable())
+                        .fromColumn(rel2.getToColumn())
+                        .toTable(rel1.getToTable())
+                        .toColumn(rel1.getToColumn())
+                        .type(RelationshipType.MANY_TO_MANY)
+                        .build();
+
+                schema.addRelationship(manyToMany1);
+                schema.addRelationship(manyToMany2);
+            }
+        }
+    }
+
+    private static void updateColumnForeignKey(DatabaseSchema schema, String tableName,
                                         String columnName, String referencedTable,
                                         String referencedColumn) {
-        org.carball.aden.model.schema.Table table = schema.findTable(tableName);
+        Table table = schema.findTable(tableName);
         if (table != null) {
             table.getColumns().stream()
                     .filter(c -> c.getName().equalsIgnoreCase(columnName))
@@ -313,7 +480,7 @@ public class SchemaParser {
         }
     }
 
-    private String cleanTableName(net.sf.jsqlparser.schema.Table table) {
+    private static String cleanTableName(net.sf.jsqlparser.schema.Table table) {
         if (table.getSchemaName() != null) {
             // For tables like [dbo].[Customer], just return Customer
             return cleanIdentifier(table.getName());
@@ -321,7 +488,7 @@ public class SchemaParser {
         return cleanIdentifier(table.getFullyQualifiedName());
     }
 
-    private String cleanIdentifier(String identifier) {
+    private static String cleanIdentifier(String identifier) {
         if (identifier == null) return null;
 
         // Remove SQL Server square brackets and quotes

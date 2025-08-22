@@ -59,9 +59,9 @@ public class MigrationReport {
         md.append("## Analysis Overview\n\n");
         md.append("| Metric | Value |\n");
         md.append("|--------|-------|\n");
-        md.append("| Entities Analyzed | ").append(analysisResult.getUsageProfiles().size()).append(" |\n");
-        md.append("| Query Patterns Found | ").append(analysisResult.getQueryPatterns().size()).append(" |\n");
-        md.append("| Denormalization Candidates | ").append(analysisResult.getDenormalizationCandidates().size()).append(" |\n");
+        md.append("| Entities Analyzed | ").append(analysisResult.usageProfiles().size()).append(" |\n");
+        md.append("| Query Patterns Found | ").append(analysisResult.queryPatterns().size()).append(" |\n");
+        md.append("| Denormalization Candidates | ").append(analysisResult.denormalizationCandidates().size()).append(" |\n");
         md.append("| Recommendations Generated | ").append(recommendations.size()).append(" |\n\n");
 
         // Scoring Guide
@@ -77,11 +77,11 @@ public class MigrationReport {
         // Migration Candidates
         md.append("## Migration Candidates\n\n");
         
-        if (analysisResult.getDenormalizationCandidates().isEmpty()) {
+        if (analysisResult.denormalizationCandidates().isEmpty()) {
             md.append("**No entities met the criteria for NoSQL migration recommendations.**\n\n");
         }
         
-        for (DenormalizationCandidate candidate : analysisResult.getDenormalizationCandidates()) {
+        for (DenormalizationCandidate candidate : analysisResult.denormalizationCandidates()) {
             md.append("### ").append(candidate.getPrimaryEntity()).append("\n\n");
             md.append("- **Complexity:** ").append(candidate.getComplexity()).append("\n");
             md.append("- **Score:** ").append(candidate.getScore())
@@ -154,7 +154,7 @@ public class MigrationReport {
 
         // Query Pattern Analysis
         md.append("## Query Pattern Analysis\n\n");
-        Map<String, Long> patternCounts = analysisResult.getQueryPatterns().stream()
+        Map<String, Long> patternCounts = analysisResult.queryPatterns().stream()
                 .collect(Collectors.groupingBy(p -> p.getQueryType().toString(), Collectors.counting()));
 
         md.append("| Query Type | Count |\n");
@@ -187,12 +187,12 @@ public class MigrationReport {
                 timestamp,
                 "4.7.2", // Could be detected from project files
                 "6.4.4", // Could be detected from packages
-                analysisResult.getUsageProfiles().size(),
-                analysisResult.getQueryPatterns().size()
+                analysisResult.usageProfiles().size(),
+                analysisResult.queryPatterns().size()
         ));
 
         // Migration candidates with recommendations
-        List<MigrationCandidate> migrationCandidates = analysisResult.getDenormalizationCandidates().stream()
+        List<MigrationCandidate> migrationCandidates = analysisResult.denormalizationCandidates().stream()
                 .map(candidate -> {
                     MigrationCandidate mc = new MigrationCandidate();
                     mc.setPrimaryEntity(candidate.getPrimaryEntity());
@@ -208,7 +208,7 @@ public class MigrationReport {
                             .ifPresent(mc::setRecommendation);
 
                     // Add current pattern info
-                    EntityUsageProfile profile = analysisResult.getUsageProfiles().get(candidate.getPrimaryEntity());
+                    EntityUsageProfile profile = analysisResult.usageProfiles().get(candidate.getPrimaryEntity());
                     if (profile != null) {
                         CurrentPattern pattern = new CurrentPattern();
                         pattern.setEagerLoadingFrequency(profile.getEagerLoadingCount());
@@ -230,7 +230,7 @@ public class MigrationReport {
     }
 
     private String generateExecutiveSummary() {
-        int lowComplexityCount = (int) analysisResult.getDenormalizationCandidates().stream()
+        int lowComplexityCount = (int) analysisResult.denormalizationCandidates().stream()
                 .filter(c -> c.getComplexity() == MigrationComplexity.LOW)
                 .count();
 
@@ -239,7 +239,7 @@ public class MigrationReport {
                         "The analysis found **%d high-priority** (low complexity) migrations. " +
                         "The most common pattern identified was eager loading of related entities, " +
                         "which maps well to NoSQL document structures.",
-                analysisResult.getDenormalizationCandidates().size(),
+                analysisResult.denormalizationCandidates().size(),
                 lowComplexityCount
         );
     }
@@ -259,14 +259,14 @@ public class MigrationReport {
         RiskAssessment risk = new RiskAssessment();
 
         // High risk entities (complex relationships, circular references)
-        List<String> highRiskEntities = analysisResult.getDenormalizationCandidates().stream()
+        List<String> highRiskEntities = analysisResult.denormalizationCandidates().stream()
                 .filter(c -> c.getComplexity() == MigrationComplexity.HIGH)
                 .map(DenormalizationCandidate::getPrimaryEntity)
                 .collect(Collectors.toList());
         risk.setHighRiskEntities(highRiskEntities);
 
         // Potential data loss risks (many-to-many relationships)
-        List<String> dataLossRisks = analysisResult.getUsageProfiles().values().stream()
+        List<String> dataLossRisks = analysisResult.usageProfiles().values().stream()
                 .filter(profile -> profile.getEntity().getNavigationProperties().stream()
                         .anyMatch(p -> p.getType() == org.carball.aden.model.entity.NavigationType.MANY_TO_MANY))
                 .map(EntityUsageProfile::getEntityName)
@@ -274,7 +274,7 @@ public class MigrationReport {
         risk.setPotentialDataLoss(dataLossRisks);
 
         // Performance impacts
-        List<PerformanceImpact> performanceImpacts = analysisResult.getDenormalizationCandidates().stream()
+        List<PerformanceImpact> performanceImpacts = analysisResult.denormalizationCandidates().stream()
                 .filter(c -> c.getRecommendedTarget() == NoSQLTarget.DOCUMENTDB)
                 .map(c -> {
                     PerformanceImpact impact = new PerformanceImpact();

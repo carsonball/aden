@@ -93,17 +93,17 @@ public class DotNetPatternAnalyzerProductionMetricsTest {
                 entities, queryPatterns, schema, dbSetMapping, productionMetrics);
 
         // Without production metrics, CustomerProfile should not be a candidate
-        assertThat(resultWithoutMetrics.getDenormalizationCandidates())
+        assertThat(resultWithoutMetrics.denormalizationCandidates())
                 .extracting(DenormalizationCandidate::getPrimaryEntity)
                 .doesNotContain("CustomerProfile");
 
         // With production metrics, CustomerProfile should be a candidate
-        assertThat(resultWithMetrics.getDenormalizationCandidates())
+        assertThat(resultWithMetrics.denormalizationCandidates())
                 .extracting(DenormalizationCandidate::getPrimaryEntity)
                 .contains("CustomerProfile");
 
         // The candidate should include Customer as a related entity due to co-access
-        DenormalizationCandidate profileCandidate = resultWithMetrics.getDenormalizationCandidates()
+        DenormalizationCandidate profileCandidate = resultWithMetrics.denormalizationCandidates()
                 .stream()
                 .filter(c -> c.getPrimaryEntity().equals("CustomerProfile"))
                 .findFirst()
@@ -131,9 +131,9 @@ public class DotNetPatternAnalyzerProductionMetricsTest {
 
         // Find Customer candidate in both results
         DenormalizationCandidate customerWithoutMetrics = findCandidate(
-                resultWithoutMetrics.getDenormalizationCandidates(), "Customer");
+                resultWithoutMetrics.denormalizationCandidates(), "Customer");
         DenormalizationCandidate customerWithMetrics = findCandidate(
-                resultWithMetrics.getDenormalizationCandidates(), "Customer");
+                resultWithMetrics.denormalizationCandidates(), "Customer");
 
         assertThat(customerWithoutMetrics).isNotNull();
         assertThat(customerWithMetrics).isNotNull();
@@ -163,7 +163,7 @@ public class DotNetPatternAnalyzerProductionMetricsTest {
                 entities, queryPatterns, schema, dbSetMapping, productionMetrics);
 
         // Check that usage profiles have production data
-        EntityUsageProfile profile = result.getUsageProfiles().get("CustomerEntity");
+        EntityUsageProfile profile = result.usageProfiles().get("CustomerEntity");
         assertThat(profile).isNotNull();
         // The production execution count comes from co-access patterns, not individual queries
         // But we should have production read/write ratio from the query analysis

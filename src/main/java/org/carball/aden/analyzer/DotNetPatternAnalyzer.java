@@ -46,8 +46,6 @@ public class DotNetPatternAnalyzer {
         log.info("Analyzing patterns for {} entities and {} query patterns",
                 entities.size(), queryPatterns.size());
 
-        AnalysisResult result = new AnalysisResult();
-
         // Build usage profiles
         Map<String, EntityUsageProfile> usageProfiles = buildUsageProfiles(entities, queryPatterns, dbSetMapping, productionMetrics);
 
@@ -58,13 +56,9 @@ public class DotNetPatternAnalyzer {
         List<DenormalizationCandidate> candidates = identifyDenormalizationCandidates(
                 usageProfiles, schema);
 
-        result.setDenormalizationCandidates(candidates);
-        result.setUsageProfiles(usageProfiles);
-        result.setQueryPatterns(queryPatterns);
-
         log.info("Analysis complete. Found {} denormalization candidates", candidates.size());
 
-        return result;
+        return new AnalysisResult(candidates, usageProfiles, queryPatterns);
     }
 
     private Map<String, EntityUsageProfile> buildUsageProfiles(

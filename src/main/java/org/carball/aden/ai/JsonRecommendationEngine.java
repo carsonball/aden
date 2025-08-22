@@ -64,14 +64,14 @@ public class JsonRecommendationEngine {
 
         if ("true".equals(System.getProperty("skip.ai"))) {
             log.info("Skipping AI recommendations (skip.ai=true), using fallback recommendations");
-            for (DenormalizationCandidate candidate : analysis.getDenormalizationCandidates()) {
+            for (DenormalizationCandidate candidate : analysis.denormalizationCandidates()) {
                 recommendations.add(createFallbackRecommendation(candidate));
             }
             return recommendations;
         }
 
         log.info("Generating AI recommendations for {} candidates",
-                analysis.getDenormalizationCandidates().size());
+                analysis.denormalizationCandidates().size());
 
         try {
             String prompt = buildJsonPrompt(analysis, schema, queryPatterns, productionMetrics);
@@ -81,7 +81,7 @@ public class JsonRecommendationEngine {
             RecommendationResponse response = parseAndValidateResponse(jsonResponse);
             
             // Validate we have recommendations for all candidates
-            validateCompleteness(response, analysis.getDenormalizationCandidates());
+            validateCompleteness(response, analysis.denormalizationCandidates());
             
             recommendations = convertToNoSQLRecommendations(response);
             
@@ -91,7 +91,7 @@ public class JsonRecommendationEngine {
             log.error("Error generating JSON recommendations: {}", e.getMessage(), e);
             
             // Fallback to individual recommendations
-            for (DenormalizationCandidate candidate : analysis.getDenormalizationCandidates()) {
+            for (DenormalizationCandidate candidate : analysis.denormalizationCandidates()) {
                 recommendations.add(createFallbackRecommendation(candidate));
             }
         }
@@ -239,7 +239,7 @@ public class JsonRecommendationEngine {
         prompt.append("Analyze the following entities and provide AWS NoSQL migration recommendations.\n\n");
         
         prompt.append("## Database Overview:\n");
-        prompt.append("Total Entities: ").append(analysis.getDenormalizationCandidates().size()).append("\n");
+        prompt.append("Total Entities: ").append(analysis.denormalizationCandidates().size()).append("\n");
         if (schema != null) {
             prompt.append("Total Tables: ").append(schema.getTables().size()).append("\n");
             prompt.append("Total Relationships: ").append(schema.getRelationships().size()).append("\n");
@@ -248,7 +248,7 @@ public class JsonRecommendationEngine {
         
         // Entity details
         prompt.append("## Entities to Analyze:\n");
-        for (DenormalizationCandidate candidate : analysis.getDenormalizationCandidates()) {
+        for (DenormalizationCandidate candidate : analysis.denormalizationCandidates()) {
             prompt.append("\n### Entity: ").append(candidate.getPrimaryEntity()).append("\n");
             prompt.append("- Related Entities: ").append(
                     candidate.getRelatedEntities().isEmpty() ? "None" : 
@@ -258,7 +258,7 @@ public class JsonRecommendationEngine {
             prompt.append("- Score: ").append(candidate.getScore()).append("\n");
             prompt.append("- Selection Reason: ").append(candidate.getReason()).append("\n");
             
-            EntityUsageProfile profile = analysis.getUsageProfiles().get(candidate.getPrimaryEntity());
+            EntityUsageProfile profile = analysis.usageProfiles().get(candidate.getPrimaryEntity());
             if (profile != null) {
                 prompt.append("- Eager Loading Count: ").append(profile.getEagerLoadingCount()).append("\n");
                 prompt.append("- Read/Write Ratio: ").append(String.format("%.1f:1", profile.getReadToWriteRatio())).append("\n");

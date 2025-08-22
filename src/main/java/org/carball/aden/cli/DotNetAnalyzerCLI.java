@@ -360,18 +360,18 @@ public class DotNetAnalyzerCLI {
         System.out.println("📊 ANALYSIS SUMMARY");
         System.out.println("=".repeat(60));
 
-        System.out.println("\nEntities analyzed: " + result.getUsageProfiles().size());
-        System.out.println("Query patterns found: " + result.getQueryPatterns().size());
-        System.out.println("Denormalization candidates: " + result.getDenormalizationCandidates().size());
+        System.out.println("\nEntities analyzed: " + result.usageProfiles().size());
+        System.out.println("Query patterns found: " + result.queryPatterns().size());
+        System.out.println("Denormalization candidates: " + result.denormalizationCandidates().size());
 
         // Migration complexity breakdown
-        long lowComplexity = result.getDenormalizationCandidates().stream()
+        long lowComplexity = result.denormalizationCandidates().stream()
                 .filter(c -> c.getComplexity().toString().equals("LOW"))
                 .count();
-        long mediumComplexity = result.getDenormalizationCandidates().stream()
+        long mediumComplexity = result.denormalizationCandidates().stream()
                 .filter(c -> c.getComplexity().toString().equals("MEDIUM"))
                 .count();
-        long highComplexity = result.getDenormalizationCandidates().stream()
+        long highComplexity = result.denormalizationCandidates().stream()
                 .filter(c -> c.getComplexity().toString().equals("HIGH"))
                 .count();
 
