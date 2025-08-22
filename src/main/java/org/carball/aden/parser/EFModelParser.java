@@ -24,9 +24,6 @@ public class EFModelParser {
     private static final Pattern NAVIGATION_REFERENCE_PATTERN =
             Pattern.compile("public\\s+virtual\\s+(\\w+)\\s+(\\w+)\\s*\\{\\s*get;\\s*set;\\s*}");
 
-    private static final Pattern FOREIGN_KEY_ATTRIBUTE_PATTERN =
-            Pattern.compile("\\[ForeignKey\\(\"(\\w+)\"\\)]");
-
     private static final Pattern DATA_ANNOTATION_PATTERN =
             Pattern.compile("\\[(\\w+)(?:\\(([^)]+)\\))?]");
 
@@ -115,6 +112,11 @@ public class EFModelParser {
             return null;
         }
 
+        // Skip obvious non-entities
+        if (isLikelyNonEntity(content, className)) {
+            return null;
+        }
+
         EntityModel entity = new EntityModel(className, fileName);
 
         // Extract navigation properties
@@ -159,15 +161,13 @@ public class EFModelParser {
                 continue;
             }
 
-            // Check if there's a foreign key annotation to determine relationship type
+            // Assume this is a many-to-one relationship
             NavigationType navType = NavigationType.MANY_TO_ONE;
 
-            // Look for [ForeignKey] attribute near this property
+            // Check if there's an annotation indicating a different relationship type
             int propertyPos = referenceMatcher.start();
             String beforeProperty = content.substring(Math.max(0, propertyPos - 200), propertyPos);
-            if (beforeProperty.contains("[ForeignKey")) {
-                navType = NavigationType.MANY_TO_ONE;
-            } else if (beforeProperty.contains("[OneToOne") || beforeProperty.contains("[Required")) {
+            if (beforeProperty.contains("[OneToOne") || beforeProperty.contains("[Required")) {
                 navType = NavigationType.ONE_TO_ONE;
             }
 
@@ -278,6 +278,16 @@ public class EFModelParser {
         return new HashMap<>(entityToTableMappings);
     }
     
+    private boolean isLikelyNonEntity(String content, String className) {
+        return content.contains("static void Main") ||  // Program class
+               content.contains("public interface") ||  // Interface
+               content.contains("public enum") ||       // Enum
+               content.contains("public abstract") ||   // Abstract base
+               className.contains("Helper") ||
+               className.contains("Util") ||
+               className.endsWith("Exception");
+    }
+
     private void setTableNameFromAnnotations(EntityModel entity) {
         // First check if we have a ToTable mapping from OnModelCreating
         String mappedTableName = entityToTableMappings.get(entity.getClassName());
