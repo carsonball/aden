@@ -69,5 +69,113 @@ namespace TestEcommerceApp.Services
             return _context.Product
                 .FirstOrDefault(p => p.Id == productId);
         }
+
+        // String operations for product search
+        public List<Product> SearchProducts(string searchTerm, string categoryPrefix)
+        {
+            return _context.Product
+                .Where(p => p.Name.Contains(searchTerm) && 
+                           p.Category.StartsWith(categoryPrefix) &&
+                           p.Description.EndsWith("available"))
+                .OrderBy(p => p.Price)
+                .ToList();
+        }
+
+        public List<Product> SearchProductsByName(string searchTerm, string prefix, string suffix)
+        {
+            return _context.Product
+                .Where(p => p.Name.Contains(searchTerm) &&
+                           p.Category.StartsWith(prefix) &&
+                           p.Description.EndsWith(suffix))
+                .ToList();
+        }
+
+        public List<Product> GetProductsByNamePattern(string namePrefix)
+        {
+            return _context.Product
+                .Where(p => p.Name.StartsWith(namePrefix))
+                .OrderBy(p => p.Name)
+                .ToList();
+        }
+
+        public List<Product> GetProductsByDescriptionEnding(string ending)
+        {
+            return _context.Product
+                .Where(p => p.Description.EndsWith(ending))
+                .OrderBy(p => p.Category)
+                .ToList();
+        }
+
+        // Complex where clauses with value types
+        public List<Product> GetProductsWithComplexFilter()
+        {
+            return _context.Product
+                .Where(p => p.Name == "Test Product" &&
+                           p.Price >= 99.99m &&
+                           p.Id == 42 &&
+                           p.IsActive == true)
+                .ToList();
+        }
+
+        // Aggregation patterns
+        public decimal GetAveragePrice()
+        {
+            return _context.Product.Average(p => p.Price);
+        }
+
+        public int GetProductCount()
+        {
+            return _context.Product.Count();
+        }
+
+        public decimal GetMaxPrice()
+        {
+            return _context.Product.Max(p => p.Price);
+        }
+
+        public decimal GetMinPrice()
+        {
+            return _context.Product.Min(p => p.Price);
+        }
+
+        public decimal GetTotalInventoryValue()
+        {
+            return _context.Product.Sum(p => p.Price);
+        }
+
+        public bool HasAnyProducts()
+        {
+            return _context.Product.Any();
+        }
+
+        public bool HasExpensiveProducts()
+        {
+            return _context.Product.Any(p => p.Price > 1000);
+        }
+
+        // GroupBy patterns with projections
+        public var GetPriceStatsByCategory()
+        {
+            return _context.Product
+                .GroupBy(p => p.Category)
+                .Select(g => new { 
+                    Category = g.Key, 
+                    Count = g.Count(), 
+                    AvgPrice = g.Average(p => p.Price),
+                    MaxPrice = g.Max(p => p.Price),
+                    MinPrice = g.Min(p => p.Price),
+                    TotalValue = g.Sum(p => p.Price)
+                })
+                .OrderBy(x => x.Category)
+                .ToList();
+        }
+
+        public var GetProductCountByPriceRange()
+        {
+            return _context.Product
+                .GroupBy(p => p.Price < 100 ? "Budget" : p.Price < 500 ? "Mid" : "Premium")
+                .Select(g => new { PriceRange = g.Key, Count = g.Count() })
+                .ToList();
+        }
     }
 }

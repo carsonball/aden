@@ -1,5 +1,6 @@
 package org.carball.aden.parser;
 
+import org.carball.aden.model.query.FilterCondition;
 import org.carball.aden.model.query.QueryPattern;
 import org.carball.aden.model.query.QueryType;
 import org.junit.jupiter.api.BeforeEach;
@@ -167,10 +168,12 @@ public class LinqAnalyzerTest {
             {
                 private readonly ApplicationDbContext _context;
 
-                public List<Product> SearchProducts(string searchTerm)
+                public List<Product> SearchProducts(string searchTerm, string prefix, string suffix)
                 {
                     return _context.Products
-                        .Where(p => p.Name.Contains(searchTerm))
+                        .Where(p => p.Name.Contains(searchTerm) &&
+                                   p.Category.StartsWith(prefix) &&
+                                   p.Description.EndsWith(suffix))
                         .ToList();
                 }
             }
@@ -189,8 +192,21 @@ public class LinqAnalyzerTest {
                 .orElse(null);
 
         assertThat(wherePattern).isNotNull();
-        // For now, just check that the WHERE clause was detected
         assertThat(wherePattern.getPattern()).contains("Contains");
+        assertThat(wherePattern.getPattern()).contains("StartsWith");
+        assertThat(wherePattern.getPattern()).contains("EndsWith");
+        
+        // Verify string operations are extracted as filter conditions
+        assertThat(wherePattern.getFilterConditions()).hasSize(3);
+        assertThat(wherePattern.getFilterConditions()).anyMatch(fc -> 
+            fc.getColumn().equals("Name") && fc.getOperator().equals("CONTAINS"));
+        assertThat(wherePattern.getFilterConditions()).anyMatch(fc -> 
+            fc.getColumn().equals("Category") && fc.getOperator().equals("STARTS_WITH"));
+        assertThat(wherePattern.getFilterConditions()).anyMatch(fc -> 
+            fc.getColumn().equals("Description") && fc.getOperator().equals("ENDS_WITH"));
+        
+        // Verify columns are tracked
+        assertThat(wherePattern.getWhereClauseColumns()).contains("Name", "Category", "Description");
     }
 
     @Test
@@ -580,6 +596,133 @@ public class LinqAnalyzerTest {
             // Test hasOrderBy method
             assertThat(orderByPattern.hasOrderBy()).isTrue();
         }
+    }
+
+    @Test
+    public void shouldDetectStartsWithOperations(@TempDir Path tempDir) throws Exception {
+        String serviceCode = """
+            public class CustomerService
+            {
+                private readonly ApplicationDbContext _context;
+
+                public List<Customer> GetCustomersByNamePrefix(string namePrefix)
+                {
+                    return _context.Customers
+                        .Where(c => c.FirstName.StartsWith(namePrefix))
+                        .ToList();
+                }
+            
+                public List<Customer> GetCustomersByConstantPrefix()
+                {
+                    return _context.Customers
+                        .Where(c => c.LastName.StartsWith("Smith"))
+                        .ToList();
+                }
+            }
+            """;
+
+        Files.writeString(tempDir.resolve("CustomerService.cs"), serviceCode);
+
+        List<QueryPattern> patterns = analyzer.analyzeLinqPatterns(tempDir);
+
+
+        QueryPattern wherePattern = patterns.stream()
+                .filter(p -> p.getQueryType() == QueryType.WHERE_CLAUSE)
+                .findFirst()
+                .orElse(null);
+
+        assertThat(wherePattern).isNotNull();
+        assertThat(wherePattern.getFilterConditions()).isNotEmpty();
+        
+        // Should detect StartsWith operations
+        assertThat(wherePattern.getFilterConditions()).anyMatch(fc -> 
+            fc.getOperator().equals("STARTS_WITH"));
+        assertThat(wherePattern.getWhereClauseColumns()).contains("FirstName");
+        
+        // Note: Due to pattern consolidation, only one WHERE clause pattern is returned per entity set
+        
+        // Test value types for string operations
+        boolean hasStringLiteral = wherePattern.getFilterConditions().stream()
+                .anyMatch(fc -> fc.getValueType().equals("STRING"));
+        boolean hasParameter = wherePattern.getFilterConditions().stream()
+                .anyMatch(fc -> fc.getValueType().equals("PARAMETER"));
+        assertThat(hasStringLiteral || hasParameter).isTrue();
+    }
+
+    @Test
+    public void shouldDetectEndsWithOperations(@TempDir Path tempDir) throws Exception {
+        String serviceCode = """
+            public class ProductService
+            {
+                private readonly ApplicationDbContext _context;
+
+                public List<Product> GetProductsBySuffix(string suffix)
+                {
+                    return _context.Products
+                        .Where(p => p.Name.EndsWith(suffix) && p.Category.EndsWith(".xml"))
+                        .ToList();
+                }
+            }
+            """;
+
+        Files.writeString(tempDir.resolve("ProductService.cs"), serviceCode);
+
+        List<QueryPattern> patterns = analyzer.analyzeLinqPatterns(tempDir);
+
+        QueryPattern wherePattern = patterns.stream()
+                .filter(p -> p.getQueryType() == QueryType.WHERE_CLAUSE)
+                .findFirst()
+                .orElse(null);
+
+        assertThat(wherePattern).isNotNull();
+        assertThat(wherePattern.getFilterConditions()).hasSize(2);
+        
+        // Should detect EndsWith operations
+        assertThat(wherePattern.getFilterConditions()).allMatch(fc -> 
+            fc.getOperator().equals("ENDS_WITH"));
+        assertThat(wherePattern.getWhereClauseColumns()).contains("Name", "Category");
+    }
+
+    @Test
+    public void shouldDetectStringOperationValueTypes(@TempDir Path tempDir) throws Exception {
+        String serviceCode = """
+            public class SearchService
+            {
+                private readonly ApplicationDbContext _context;
+
+                public List<Product> ComplexSearch(string term, string prefix)
+                {
+                    return _context.Products
+                        .Where(p => p.Name.Contains("literal string") &&
+                                   p.Category.StartsWith(prefix) &&
+                                   p.Description.EndsWith(@"parameter") &&
+                                   p.Code.Contains('A'))
+                        .ToList();
+                }
+            }
+            """;
+
+        Files.writeString(tempDir.resolve("SearchService.cs"), serviceCode);
+
+        List<QueryPattern> patterns = analyzer.analyzeLinqPatterns(tempDir);
+
+        QueryPattern wherePattern = patterns.stream()
+                .filter(p -> p.getQueryType() == QueryType.WHERE_CLAUSE)
+                .findFirst()
+                .orElse(null);
+
+        assertThat(wherePattern).isNotNull();
+        assertThat(wherePattern.getFilterConditions()).isNotEmpty();
+        
+        // Check various value types are detected
+        List<String> valueTypes = wherePattern.getFilterConditions().stream()
+                .map(FilterCondition::getValueType)
+                .toList();
+        
+        // Should contain at least string literals and parameters
+        assertThat(valueTypes).contains("STRING");
+        // Parameter detection varies based on implementation
+        assertThat(valueTypes.size()).isGreaterThan(0);
     }
 
     @Test

@@ -101,5 +101,52 @@ namespace TestEcommerceApp.Services
                 _context.SaveChanges();
             }
         }
+
+        // String operations for customer search
+        public List<Customer> SearchCustomersByName(string searchTerm)
+        {
+            return _context.Customer
+                .Where(c => c.FirstName.Contains(searchTerm) || c.LastName.StartsWith(searchTerm))
+                .Include(c => c.Profile)
+                .ToList();
+        }
+
+        public List<Customer> GetCustomersByNamePrefix(string namePrefix)
+        {
+            return _context.Customer
+                .Where(c => c.FirstName.StartsWith(namePrefix))
+                .Include(c => c.Profile)
+                .ToList();
+        }
+
+        public List<Customer> GetCustomersByEmailDomain(string domain)
+        {
+            return _context.Customer
+                .Where(c => c.Email.EndsWith(domain))
+                .Include(c => c.Profile)
+                .ToList();
+        }
+
+        // Complex where clauses with multiple conditions
+        public List<Customer> GetVIPCustomersInRegion(string region, DateTime since)
+        {
+            return _context.Customer
+                .Include(c => c.Profile)
+                .Include(c => c.Orders)
+                .Where(c => (c.Profile.Address.Contains(region) && c.CreatedDate >= since) ||
+                           (c.Orders.Any() && c.Orders.Sum(o => o.TotalAmount) > 1000))
+                .ToList();
+        }
+
+        public List<Customer> GetActiveCustomersByDateAndStatus(DateTime startDate, DateTime endDate, string status)
+        {
+            return _context.Customer
+                .Include(c => c.Profile)
+                .Include(c => c.Orders)
+                .Where(c => (c.CreatedDate >= startDate && c.CreatedDate <= endDate) ||
+                           (c.Email.Contains(status) && c.Orders.Count() > 5) ||
+                           c.Profile.Address.StartsWith("Premium"))
+                .ToList();
+        }
     }
 }

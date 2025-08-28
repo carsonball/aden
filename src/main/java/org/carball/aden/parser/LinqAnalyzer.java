@@ -42,7 +42,7 @@ public class LinqAnalyzer {
     
     // Enhanced patterns for WHERE clause analysis
     private static final Pattern WHERE_CLAUSE_PATTERN = 
-            Pattern.compile("\\.Where\\s*\\(\\s*(?:\\w+\\s*=>\\s*)?([^)]+)\\)", Pattern.DOTALL);
+            Pattern.compile("\\.Where\\s*\\(\\s*(?:\\w+\\s*=>\\s*)?(.*?)\\)(?:\\s*\\.|$)", Pattern.DOTALL);
     
     private static final Pattern ORDER_BY_PATTERN = 
             Pattern.compile("\\.OrderBy(?:Descending)?\\s*\\(\\s*(?:\\w+\\s*=>\\s*)?(?:\\w+\\.)?([\\w.]+)\\s*\\)");
@@ -156,7 +156,10 @@ public class LinqAnalyzer {
             char c = content.charAt(i);
 
             if (c == '(') parenthesesCount++;
-            else if (c == ')') parenthesesCount--;
+            else if (c == ')') {
+                parenthesesCount--;
+                end = i + 1; // Include the closing parenthesis
+            }
             else if (c == ';' && parenthesesCount == 0) {
                 end = i;
                 break;
@@ -343,7 +346,7 @@ public class LinqAnalyzer {
     /**
      * Analyzes pagination patterns
      */
-    private List<QueryPattern> analyzePaginationPatterns(String queryString, String entitySet, String sourceFile) {
+    private List<QueryPattern>  analyzePaginationPatterns(String queryString, String entitySet, String sourceFile) {
         List<QueryPattern> patterns = new ArrayList<>();
         
         Matcher pageMatcher = PAGINATION_PATTERN.matcher(queryString);
