@@ -753,7 +753,90 @@ public class LinqAnalyzerTest {
                 .orElse(null);
 
         assertThat(includePattern).isNotNull();
-        // For now, Include patterns don't populate joinedEntities
-        // This indicates future enhancement needed
+    }
+
+    @Test
+    public void shouldCaptureJoinedEntitiesFromIncludePatterns(@TempDir Path tempDir) throws Exception {
+        String serviceCode = """
+            public class CustomerService
+            {
+                private readonly ApplicationDbContext _context;
+
+                public Customer GetCustomerWithOrders(int id)
+                {
+                    return _context.Customers
+                        .Include(c => c.Orders)
+                        .FirstOrDefault(c => c.Id == id);
+                }
+
+                public List<Order> GetOrderWithDetails(int orderId)
+                {
+                    return _context.Orders
+                        .Include(o => o.Customer)
+                        .Include(o => o.OrderItems)
+                        .ThenInclude(oi => oi.Product)
+                        .Where(o => o.Id == orderId)
+                        .ToList();
+                }
+
+                public Customer GetCustomerWithComplexIncludes(int id)
+                {
+                    return _context.Customers
+                        .Include(c => c.Orders)
+                        .ThenInclude(o => o.OrderItems)
+                        .Include(c => c.Profile)
+                        .FirstOrDefault(c => c.Id == id);
+                }
+            }
+            """;
+
+        Files.writeString(tempDir.resolve("CustomerService.cs"), serviceCode);
+
+        List<QueryPattern> patterns = analyzer.analyzeLinqPatterns(tempDir);
+
+
+        // Test 1: Simple Include pattern should capture joined entity
+        QueryPattern simpleInclude = patterns.stream()
+                .filter(p -> p.getQueryType() == QueryType.EAGER_LOADING && 
+                            p.getTargetEntity().equals("Customers.Orders"))
+                .findFirst()
+                .orElse(null);
+
+        assertThat(simpleInclude).isNotNull();
+        assertThat(simpleInclude.hasJoins()).isTrue();
+        assertThat(simpleInclude.getJoinedEntities()).contains("Orders");
+
+        // Test 2: Complex eager loading should capture multiple joined entities
+        QueryPattern complexPattern = patterns.stream()
+                .filter(p -> p.getQueryType() == QueryType.COMPLEX_EAGER_LOADING)
+                .findFirst()
+                .orElse(null);
+
+        assertThat(complexPattern).isNotNull();
+        assertThat(complexPattern.hasJoins()).isTrue();
+        assertThat(complexPattern.getJoinedEntities()).containsAnyOf("Customer", "OrderItems", "Product", "Orders", "Profile");
+        assertThat(complexPattern.getJoinedEntities().size()).isGreaterThan(1);
+
+        // Test 3: ThenInclude patterns should also capture joined entities
+        QueryPattern nestedPattern = patterns.stream()
+                .filter(p -> p.getQueryType() == QueryType.EAGER_LOADING && 
+                            p.getTargetEntity().contains("nested"))
+                .findFirst()
+                .orElse(null);
+
+        if (nestedPattern != null) {
+            assertThat(nestedPattern.hasJoins()).isTrue();
+            assertThat(nestedPattern.getJoinedEntities()).isNotEmpty();
+        }
+
+        // Test 4: Verify all eager loading patterns have joined entities populated
+        List<QueryPattern> allEagerLoadingPatterns = patterns.stream()
+                .filter(p -> p.getQueryType() == QueryType.EAGER_LOADING || 
+                            p.getQueryType() == QueryType.COMPLEX_EAGER_LOADING)
+                .toList();
+
+        assertThat(allEagerLoadingPatterns).isNotEmpty();
+        assertThat(allEagerLoadingPatterns).allMatch(QueryPattern::hasJoins);
+        assertThat(allEagerLoadingPatterns).allMatch(p -> !p.getJoinedEntities().isEmpty());
     }
 }

@@ -185,6 +185,10 @@ public class LinqAnalyzer {
             );
             pattern.setQueryType(QueryType.COMPLEX_EAGER_LOADING);
             pattern.setPattern(fullChain);
+            
+            // Extract all joined entities from the complex chain
+            extractJoinedEntitiesFromChain(fullChain, pattern);
+            
             patterns.add(pattern);
 
             log.trace("Found complex eager loading with {} includes for {}", includeCount, entitySet);
@@ -201,6 +205,10 @@ public class LinqAnalyzer {
                     sourceFile
             );
             pattern.setQueryType(QueryType.EAGER_LOADING);
+            
+            // Add the included entity as a joined entity
+            pattern.addJoinedEntity(includedProperty);
+            
             patterns.add(pattern);
         }
 
@@ -215,6 +223,10 @@ public class LinqAnalyzer {
                     sourceFile
             );
             pattern.setQueryType(QueryType.EAGER_LOADING);
+            
+            // Add the nested included entity as a joined entity
+            pattern.addJoinedEntity(includedProperty);
+            
             patterns.add(pattern);
         }
 
@@ -255,6 +267,25 @@ public class LinqAnalyzer {
             index += search.length();
         }
         return count;
+    }
+    
+    /**
+     * Extracts all joined entities from a complex Include chain
+     */
+    private void extractJoinedEntitiesFromChain(String fullChain, QueryPattern pattern) {
+        // Extract entities from Include patterns
+        Matcher includeMatcher = INCLUDE_PATTERN.matcher(fullChain);
+        while (includeMatcher.find()) {
+            String includedProperty = includeMatcher.group(1);
+            pattern.addJoinedEntity(includedProperty);
+        }
+        
+        // Extract entities from ThenInclude patterns
+        Matcher thenIncludeMatcher = THEN_INCLUDE_PATTERN.matcher(fullChain);
+        while (thenIncludeMatcher.find()) {
+            String includedProperty = thenIncludeMatcher.group(1);
+            pattern.addJoinedEntity(includedProperty);
+        }
     }
     
     /**

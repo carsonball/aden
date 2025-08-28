@@ -70,8 +70,7 @@ public class DotNetPatternAnalyzer {
         for (EntityModel entity : entities) {
             profiles.put(entity.getClassName(), new EntityUsageProfile(entity));
         }
-        
-        // Store profiles as instance variable for access in createCandidate
+
         this.profiles = profiles;
 
         // Populate usage data from query patterns
@@ -97,6 +96,9 @@ public class DotNetPatternAnalyzer {
 
                         // Extract related entities from eager loading
                         extractRelatedEntities(pattern, profile);
+                        
+                        // Process joined entities from Include patterns
+                        processJoinedEntities(pattern, profile);
                         break;
                 }
             }
@@ -136,6 +138,22 @@ public class DotNetPatternAnalyzer {
 
                 if (!profile.getAlwaysLoadedWithEntities().contains(relatedEntity)) {
                     profile.getAlwaysLoadedWithEntities().add(relatedEntity);
+                }
+            }
+        }
+    }
+    
+    /**
+     * Processes joined entities from Include patterns and adds them to the profile's
+     * always loaded entities, since Include patterns represent explicit co-access.
+     */
+    private void processJoinedEntities(QueryPattern pattern, EntityUsageProfile profile) {
+        if (pattern.hasJoins()) {
+            for (String joinedEntity : pattern.getJoinedEntities()) {
+                if (!profile.getAlwaysLoadedWithEntities().contains(joinedEntity)) {
+                    profile.getAlwaysLoadedWithEntities().add(joinedEntity);
+                    log.debug("Added joined entity '{}' to profile for '{}' from Include pattern", 
+                             joinedEntity, profile.getEntityName());
                 }
             }
         }
