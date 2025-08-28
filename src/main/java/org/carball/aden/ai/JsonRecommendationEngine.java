@@ -442,13 +442,13 @@ public class JsonRecommendationEngine {
         Map<String, Integer> patternCounts = new LinkedHashMap<>();
         for (QueryPattern pattern : entityPatterns) {
             String patternDesc = getPatternDescription(pattern.getQueryType().toString());
-            patternCounts.merge(patternDesc, pattern.getFrequency(), Integer::sum);
+            patternCounts.merge(patternDesc, 1, Integer::sum);
         }
         
         // Output aggregated patterns with descriptions
         for (Map.Entry<String, Integer> entry : patternCounts.entrySet()) {
             queryInfo.append("  - ").append(entry.getKey())
-                    .append(" (frequency: ").append(entry.getValue()).append(")\n");
+                    .append(" (occurrences: ").append(entry.getValue()).append(")\n");
         }
         
         // Add detailed information for patterns that have specific details

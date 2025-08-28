@@ -4,25 +4,6 @@
 # migration candidates. Ideal for production systems where you want high
 # confidence in recommendations. May miss some valid candidates.
 
-# Query Pattern Analysis Thresholds
-# These control when entities are considered frequently accessed together
-
-# Minimum frequency for entities to be considered "always loaded together"
-# Conservative: 20 (very strong pattern required)
-always_loaded_together_frequency_threshold: 20
-
-# Minimum total access frequency for an entity to be considered a candidate
-# Conservative: 25 (only highly accessed entities)
-total_access_frequency_threshold: 25
-
-# Minimum frequency for medium-priority analysis with related entities
-# Conservative: 10 (significant usage required)
-medium_frequency_threshold: 10
-
-# Minimum count of complex eager loading queries to be considered a candidate
-# Conservative: 5 (multiple complex patterns needed)
-complex_eager_loading_frequency_threshold: 5
-
 # Production Metrics Thresholds
 # These apply when Query Store production data is available
 

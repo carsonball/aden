@@ -276,7 +276,7 @@ public class LinqAnalyzerTest {
         assertThat(aggPatterns).isNotEmpty(); // Patterns may be consolidated
         assertThat(aggPatterns).allMatch(QueryPattern::isHasAggregation);
         // Check that aggregation patterns are being detected
-        assertThat(aggPatterns.get(0).getFrequency()).isGreaterThan(1);
+        assertThat(aggPatterns.get(0).isHasAggregation()).isTrue();
     }
 
     @Test
@@ -319,7 +319,7 @@ public class LinqAnalyzerTest {
         assertThat(pagePatterns).isNotEmpty();
         assertThat(pagePatterns).allMatch(QueryPattern::isHasPagination);
         // Check that pagination patterns are being detected
-        assertThat(pagePatterns.get(0).getFrequency()).isGreaterThan(0);
+        assertThat(pagePatterns.get(0).isHasPagination()).isTrue();
     }
 
     @Test
@@ -358,8 +358,8 @@ public class LinqAnalyzerTest {
                 .toList();
 
         assertThat(groupPatterns).isNotEmpty();
-        // Patterns may be consolidated, so check frequency
-        assertThat(groupPatterns.get(0).getFrequency()).isGreaterThan(0);
+        // Patterns were consolidated
+        assertThat(groupPatterns).hasSize(1);
     }
 
     @Test
@@ -503,14 +503,13 @@ public class LinqAnalyzerTest {
 
         List<QueryPattern> patterns = analyzer.analyzeLinqPatterns(tempDir);
 
-        // Should consolidate identical patterns and increment frequency
+        // Should consolidate identical patterns
         QueryPattern wherePattern = patterns.stream()
                 .filter(p -> p.getQueryType() == QueryType.WHERE_CLAUSE)
                 .findFirst()
                 .orElse(null);
 
         assertThat(wherePattern).isNotNull();
-        assertThat(wherePattern.getFrequency()).isEqualTo(2);
         assertThat(wherePattern.getSourceFiles()).hasSize(1);
     }
 

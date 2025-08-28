@@ -69,7 +69,7 @@ public class DotNetPatternAnalyzerProductionMetricsTest {
 
         // Create test query patterns
         queryPatterns = new ArrayList<>();
-        QueryPattern pattern1 = new QueryPattern("SingleEntity", "Customer", 10, "Repository.cs");
+        QueryPattern pattern1 = new QueryPattern("SingleEntity", "Customer", "Repository.cs");
         pattern1.setQueryType(QueryType.SINGLE_ENTITY);
         queryPatterns.add(pattern1);
 
@@ -117,7 +117,7 @@ public class DotNetPatternAnalyzerProductionMetricsTest {
     @Test
     void testProductionMetricsEnhanceExistingCandidates() {
         // Add query pattern that makes Customer a candidate
-        QueryPattern pattern2 = new QueryPattern("EagerLoading", "Customer.Orders", 100, "Repository.cs");
+        QueryPattern pattern2 = new QueryPattern("EagerLoading", "Customer.Orders", "Repository.cs");
         pattern2.setQueryType(QueryType.EAGER_LOADING);
         queryPatterns.add(pattern2);
 

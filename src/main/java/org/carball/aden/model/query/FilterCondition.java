@@ -14,7 +14,6 @@ public class FilterCondition {
     private List<String> sampleValues;
     private boolean isParameter;
     private String parameterName;
-    private int frequency;
     
     /**
      * Valid filter operators found in LINQ queries

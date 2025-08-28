@@ -6,19 +6,6 @@ import lombok.Data;
 @Data
 public class ThresholdConfig {
     
-    // Query pattern analysis thresholds
-    @JsonProperty("always_loaded_together_frequency_threshold")
-    private int alwaysLoadedTogetherFrequencyThreshold = 5;
-    
-    @JsonProperty("total_access_frequency_threshold") 
-    private int totalAccessFrequencyThreshold = 8;
-    
-    @JsonProperty("medium_frequency_threshold")
-    private int mediumFrequencyThreshold = 2;
-
-    @JsonProperty("complex_eager_loading_frequency_threshold")
-    private int complexEagerLoadingFrequencyThreshold = 1;
-    
     // Production metrics thresholds
     @JsonProperty("high_production_usage_threshold")
     private int highProductionUsageThreshold = 100;
@@ -58,16 +45,12 @@ public class ThresholdConfig {
     
     public String getDescription() {
         return String.format(
-            "Thresholds: alwaysLoaded=%d, totalAccess=%d, mediumFreq=%d, complexQueries=%d, " +
-            "prodUsage=%d, prodCoAccess=%d, relatedCoAccess=%d, readRatio=%.1f",
-            alwaysLoadedTogetherFrequencyThreshold,
-            totalAccessFrequencyThreshold,
-            mediumFrequencyThreshold,
-            complexEagerLoadingFrequencyThreshold,
+            "Thresholds: prodUsage=%d, prodCoAccess=%d, relatedCoAccess=%d, readRatio=%.1f, slowQuery=%.1fms",
             highProductionUsageThreshold,
             productionCoAccessThreshold,
             relatedEntityCoAccessThreshold,
-            readHeavyRatioThreshold
+            readHeavyRatioThreshold,
+            slowQueryDurationThresholdMs
         );
     }
 }

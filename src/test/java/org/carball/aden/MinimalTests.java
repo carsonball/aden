@@ -132,7 +132,6 @@ public class MinimalTests {
         QueryPattern pattern = new QueryPattern(
                 "EAGER_LOADING",
                 "Customer.Orders",
-                100, // High frequency
                 "CustomerService.cs"
         );
         pattern.setQueryType(org.carball.aden.model.query.QueryType.EAGER_LOADING);

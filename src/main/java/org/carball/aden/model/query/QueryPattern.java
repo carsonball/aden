@@ -10,7 +10,6 @@ import java.util.HashSet;
 public class QueryPattern {
     private String type;
     private String targetEntity;
-    private int frequency;
     private List<String> sourceFiles = new ArrayList<>();
     private String pattern;
     private QueryType queryType;
@@ -25,16 +24,12 @@ public class QueryPattern {
     private boolean hasPagination = false;
     private List<String> parameterTypes = new ArrayList<>();
 
-    public QueryPattern(String type, String targetEntity, int frequency, String sourceFile) {
+    public QueryPattern(String type, String targetEntity, String sourceFile) {
         this.type = type;
         this.targetEntity = targetEntity;
-        this.frequency = frequency;
         this.sourceFiles.add(sourceFile);
     }
 
-    public void incrementFrequency() {
-        frequency++;
-    }
 
     public void addSourceFile(String file) {
         if (!sourceFiles.contains(file)) {

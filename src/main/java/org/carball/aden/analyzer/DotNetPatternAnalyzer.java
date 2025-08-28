@@ -88,12 +88,12 @@ public class DotNetPatternAnalyzer {
                     case COLLECTION:
                     case FILTERED_SINGLE:
                     case FILTERED_COLLECTION:
-                        profile.setReadCount(profile.getReadCount() + pattern.getFrequency());
+                        profile.setReadCount(profile.getReadCount() + 1);
                         break;
                     case EAGER_LOADING:
                     case COMPLEX_EAGER_LOADING:
-                        profile.incrementEagerLoadingCount(pattern.getFrequency());
-                        profile.setReadCount(profile.getReadCount() + pattern.getFrequency());
+                        profile.incrementEagerLoadingCount(1);
+                        profile.setReadCount(profile.getReadCount() + 1);
 
                         // Extract related entities from eager loading
                         extractRelatedEntities(pattern, profile);
@@ -134,11 +134,8 @@ public class DotNetPatternAnalyzer {
             if (parts.length > 1) {
                 String relatedEntity = parts[1];
 
-                // Check if this entity is always loaded with the related one
-                if (pattern.getFrequency() > thresholds.getAlwaysLoadedTogetherFrequencyThreshold()) {
-                    if (!profile.getAlwaysLoadedWithEntities().contains(relatedEntity)) {
-                        profile.getAlwaysLoadedWithEntities().add(relatedEntity);
-                    }
+                if (!profile.getAlwaysLoadedWithEntities().contains(relatedEntity)) {
+                    profile.getAlwaysLoadedWithEntities().add(relatedEntity);
                 }
             }
         }
@@ -380,17 +377,10 @@ public class DotNetPatternAnalyzer {
             return true;
         }
 
-        // High frequency eager loading (use combined frequency)
-        if (profile.getTotalAccessFrequency() > thresholds.getTotalAccessFrequencyThreshold()) {
-            log.trace("{} has high total access frequency: {}",
-                    profile.getEntityName(), profile.getTotalAccessFrequency());
-            return true;
-        }
-
-        // Medium frequency with always loaded entities
-        if (profile.getTotalAccessFrequency() > thresholds.getMediumFrequencyThreshold() &&
-                !profile.getAlwaysLoadedWithEntities().isEmpty()) {
-            log.trace("{} has medium frequency with related entities", profile.getEntityName());
+        // Any eager loading makes it a candidate
+        if (profile.getEagerLoadingCount() > 0) {
+            log.trace("{} has eager loading patterns: {}",
+                    profile.getEntityName(), profile.getEagerLoadingCount());
             return true;
         }
 
@@ -407,7 +397,7 @@ public class DotNetPatternAnalyzer {
                 .filter(p -> p.getQueryType() == QueryType.COMPLEX_EAGER_LOADING)
                 .count();
 
-        if (complexQueries > thresholds.getComplexEagerLoadingFrequencyThreshold()) {
+        if (complexQueries > 0) {
             log.trace("{} has {} complex queries", profile.getEntityName(), complexQueries);
             return true;
         }
@@ -524,8 +514,8 @@ public class DotNetPatternAnalyzer {
     private String generateReason(EntityUsageProfile profile) {
         List<String> reasons = new ArrayList<>();
 
-        if (profile.getEagerLoadingCount() > thresholds.getTotalAccessFrequencyThreshold()) {
-            reasons.add("High frequency eager loading (" + profile.getEagerLoadingCount() + " occurrences)");
+        if (profile.getEagerLoadingCount() > 0) {
+            reasons.add("Eager loading patterns (" + profile.getEagerLoadingCount() + " occurrences)");
         }
 
         if (!profile.getAlwaysLoadedWithEntities().isEmpty()) {

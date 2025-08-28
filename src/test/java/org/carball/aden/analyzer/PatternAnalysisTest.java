@@ -31,14 +31,14 @@ public class PatternAnalysisTest {
         customer.addNavigationProperty(new NavigationProperty("Orders", "Order", NavigationType.ONE_TO_MANY));
 
         // And: Frequent LINQ queries with .Include(c => c.Orders)
-        QueryPattern pattern = new QueryPattern("EAGER_LOADING", "Customer.Orders", 150, "CustomerService.cs");
+        QueryPattern pattern = new QueryPattern("EAGER_LOADING", "Customer.Orders", "CustomerService.cs");
         pattern.setQueryType(QueryType.EAGER_LOADING);
 
         // When: analyzing patterns
         DatabaseSchema mockSchema = new DatabaseSchema();
         AnalysisResult result = analyzer.analyzePatterns(
-                Arrays.asList(customer),
-                Arrays.asList(pattern),
+                List.of(customer),
+                List.of(pattern),
                 mockSchema,
                 new HashMap<>()
         );
@@ -61,15 +61,15 @@ public class PatternAnalysisTest {
 
         // And: Complex query patterns
         List<QueryPattern> patterns = Arrays.asList(
-                new QueryPattern("COMPLEX_EAGER_LOADING", "Order", 50, "OrderService.cs"),
-                new QueryPattern("EAGER_LOADING", "Order.OrderItems", 100, "OrderService.cs")
+                new QueryPattern("COMPLEX_EAGER_LOADING", "Order", "OrderService.cs"),
+                new QueryPattern("EAGER_LOADING", "Order.OrderItems", "OrderService.cs")
         );
         patterns.forEach(p -> p.setQueryType(QueryType.EAGER_LOADING));
 
         // When: analyzing
         DatabaseSchema mockSchema = new DatabaseSchema();
         AnalysisResult result = analyzer.analyzePatterns(
-                Arrays.asList(order),
+                List.of(order),
                 patterns,
                 mockSchema,
                 new HashMap<>()
@@ -93,7 +93,6 @@ public class PatternAnalysisTest {
         QueryPattern pattern = new QueryPattern(
                 "EAGER_LOADING",
                 "Customers",  // DbContext property name (plural)
-                51,  // High frequency to exceed threshold
                 "CustomerService.cs"
         );
         pattern.setQueryType(QueryType.EAGER_LOADING);
@@ -105,8 +104,8 @@ public class PatternAnalysisTest {
         // When: analyzing patterns with DbSet mapping
         DatabaseSchema mockSchema = new DatabaseSchema();
         AnalysisResult result = analyzer.analyzePatterns(
-                Arrays.asList(customer),
-                Arrays.asList(pattern),
+                List.of(customer),
+                List.of(pattern),
                 mockSchema,
                 dbSetMapping
         );
@@ -129,7 +128,6 @@ public class PatternAnalysisTest {
         QueryPattern pattern = new QueryPattern(
                 "EAGER_LOADING",
                 "PurchaseHistory",  // Non-standard property name
-                51,  // High frequency to exceed threshold
                 "OrderService.cs"
         );
         pattern.setQueryType(QueryType.EAGER_LOADING);
@@ -141,8 +139,8 @@ public class PatternAnalysisTest {
         // When: analyzing patterns
         DatabaseSchema mockSchema = new DatabaseSchema();
         AnalysisResult result = analyzer.analyzePatterns(
-                Arrays.asList(order),
-                Arrays.asList(pattern),
+                List.of(order),
+                List.of(pattern),
                 mockSchema,
                 dbSetMapping
         );
@@ -165,7 +163,6 @@ public class PatternAnalysisTest {
         QueryPattern pattern = new QueryPattern(
                 "EAGER_LOADING",
                 "Customer",  // Direct entity name
-                51,  // High frequency to exceed threshold
                 "CustomerService.cs"
         );
         pattern.setQueryType(QueryType.EAGER_LOADING);
@@ -176,8 +173,8 @@ public class PatternAnalysisTest {
         // When: analyzing patterns
         DatabaseSchema mockSchema = new DatabaseSchema();
         AnalysisResult result = analyzer.analyzePatterns(
-                Arrays.asList(customer),
-                Arrays.asList(pattern),
+                List.of(customer),
+                List.of(pattern),
                 mockSchema,
                 dbSetMapping
         );

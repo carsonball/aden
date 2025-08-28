@@ -133,7 +133,6 @@ public class LinqAnalyzer {
                 QueryPattern pattern = new QueryPattern(
                         queryType.toString(),
                         entitySet,
-                        1,
                         filePath.toString()
                 );
                 pattern.setQueryType(queryType);
@@ -150,7 +149,6 @@ public class LinqAnalyzer {
     }
 
     private String extractQuerySubstring(String content, int start) {
-        // Extract query until semicolon or new statement
         int end = start;
         int parenthesesCount = 0;
 
@@ -162,13 +160,6 @@ public class LinqAnalyzer {
             else if (c == ';' && parenthesesCount == 0) {
                 end = i;
                 break;
-            } else if (c == '\n' && parenthesesCount == 0 && i > start + 1) {
-                // Check if this is really the end of the query
-                String nextLine = content.substring(i + 1, Math.min(i + 50, content.length())).trim();
-                if (!nextLine.startsWith(".")) {
-                    end = i;
-                    break;
-                }
             }
         }
 
@@ -187,7 +178,6 @@ public class LinqAnalyzer {
             QueryPattern pattern = new QueryPattern(
                     "COMPLEX_EAGER_LOADING",
                     entitySet,
-                    1,
                     sourceFile
             );
             pattern.setQueryType(QueryType.COMPLEX_EAGER_LOADING);
@@ -205,7 +195,6 @@ public class LinqAnalyzer {
             QueryPattern pattern = new QueryPattern(
                     "EAGER_LOADING",
                     entitySet + "." + includedProperty,
-                    1,
                     sourceFile
             );
             pattern.setQueryType(QueryType.EAGER_LOADING);
@@ -220,7 +209,6 @@ public class LinqAnalyzer {
             QueryPattern pattern = new QueryPattern(
                     "NESTED_EAGER_LOADING",
                     entitySet + ".nested." + includedProperty,
-                    1,
                     sourceFile
             );
             pattern.setQueryType(QueryType.EAGER_LOADING);
@@ -247,18 +235,13 @@ public class LinqAnalyzer {
             QueryPattern existing = consolidated.get(key);
 
             if (existing != null) {
-                existing.incrementFrequency();
                 existing.addSourceFile(pattern.getSourceFiles().get(0));
             } else {
                 consolidated.put(key, pattern);
             }
         }
 
-        // Sort by frequency
-        List<QueryPattern> result = new ArrayList<>(consolidated.values());
-        result.sort((a, b) -> Integer.compare(b.getFrequency(), a.getFrequency()));
-
-        return result;
+        return new ArrayList<>(consolidated.values());
     }
 
     private int countOccurrences(String text, String search) {
@@ -284,7 +267,6 @@ public class LinqAnalyzer {
             QueryPattern pattern = new QueryPattern(
                     "WHERE_CLAUSE",
                     entitySet,
-                    1,
                     sourceFile
             );
             pattern.setQueryType(QueryType.WHERE_CLAUSE);
@@ -321,7 +303,6 @@ public class LinqAnalyzer {
             QueryPattern pattern = new QueryPattern(
                     "ORDER_BY",
                     entitySet,
-                    1,
                     sourceFile
             );
             pattern.setQueryType(QueryType.ORDER_BY);
@@ -347,7 +328,6 @@ public class LinqAnalyzer {
             QueryPattern pattern = new QueryPattern(
                     "AGGREGATION",
                     entitySet,
-                    1,
                     sourceFile
             );
             pattern.setQueryType(QueryType.AGGREGATION);
@@ -374,7 +354,6 @@ public class LinqAnalyzer {
             QueryPattern pattern = new QueryPattern(
                     "PAGINATION",
                     entitySet,
-                    1,
                     sourceFile
             );
             pattern.setQueryType(QueryType.PAGINATION);
@@ -400,7 +379,6 @@ public class LinqAnalyzer {
             QueryPattern pattern = new QueryPattern(
                     "GROUP_BY",
                     entitySet,
-                    1,
                     sourceFile
             );
             pattern.setQueryType(QueryType.GROUP_BY);
@@ -429,7 +407,6 @@ public class LinqAnalyzer {
                     .operator(operator)
                     .valueType(determineValueType(value))
                     .isParameter(value.startsWith("@") || Character.isUpperCase(value.charAt(0)))
-                    .frequency(1)
                     .build();
             
             pattern.addFilterCondition(condition);
@@ -453,7 +430,6 @@ public class LinqAnalyzer {
                     .operator("CONTAINS")
                     .valueType(determineValueType(value))
                     .isParameter(value.startsWith("@") || Character.isUpperCase(value.charAt(0)))
-                    .frequency(1)
                     .build();
             
             pattern.addFilterCondition(condition);
@@ -472,7 +448,6 @@ public class LinqAnalyzer {
                     .operator("STARTS_WITH")
                     .valueType(determineValueType(value))
                     .isParameter(value.startsWith("@") || Character.isUpperCase(value.charAt(0)))
-                    .frequency(1)
                     .build();
             
             pattern.addFilterCondition(condition);
@@ -491,7 +466,6 @@ public class LinqAnalyzer {
                     .operator("ENDS_WITH")
                     .valueType(determineValueType(value))
                     .isParameter(value.startsWith("@") || Character.isUpperCase(value.charAt(0)))
-                    .frequency(1)
                     .build();
             
             pattern.addFilterCondition(condition);
