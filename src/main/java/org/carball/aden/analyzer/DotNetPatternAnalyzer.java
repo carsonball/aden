@@ -123,7 +123,7 @@ public class DotNetPatternAnalyzer {
         if (mappedEntity != null) {
             return mappedEntity;
         }
-        
+
         // Fall back to original value if no mapping found
         return targetEntity;
     }
@@ -188,41 +188,7 @@ public class DotNetPatternAnalyzer {
                 tablePatterns.frequentTableCombinations();
             
             if (frequentCombinations != null) {
-                // Process co-accessed tables
-                for (TableCombination combo : frequentCombinations) {
-                    List<String> tables = combo.getTables();
-                    long executions = combo.getTotalExecutions();
-                    
-                    // Map table names to entity names using explicit mappings
-                    for (String table : tables) {
-                        String entityName = tableToEntityMap.get(table);
-                        if (entityName == null) {
-                            entityName = tableToEntityMap.get(table.toLowerCase());
-                        }
-                        
-                        if (entityName != null) {
-                            EntityUsageProfile profile = profiles.get(entityName);
-                            if (profile != null) {
-                                // Update production execution count
-                                profile.setProductionExecutionCount(
-                                    profile.getProductionExecutionCount() + executions);
-                                
-                                // Add co-accessed entities
-                                for (String otherTable : tables) {
-                                    if (!otherTable.equals(table)) {
-                                        String otherEntity = tableToEntityMap.get(otherTable);
-                                        if (otherEntity == null) {
-                                            otherEntity = tableToEntityMap.get(otherTable.toLowerCase());
-                                        }
-                                        if (otherEntity != null) {
-                                            profile.addCoAccessedEntity(otherEntity, (int) executions);
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
+                processTableCombinations(frequentCombinations, tableToEntityMap, profiles);
             }
         }
         
@@ -231,55 +197,63 @@ public class DotNetPatternAnalyzer {
         if (analyzedQueries != null) {
             Map<String, Long> tableReadCounts = new HashMap<>();
             Map<String, Long> tableWriteCounts = new HashMap<>();
+
+            calculateTableReadWriteCounts(analyzedQueries, tableReadCounts, tableWriteCounts);
+
+            // Update production read/write ratios in profiles
+            calculateReadWriteRatios(profiles, tableReadCounts, tableWriteCounts);
+        }
+    }
+
+    private static void calculateReadWriteRatios(Map<String, EntityUsageProfile> profiles, Map<String, Long> tableReadCounts, Map<String, Long> tableWriteCounts) {
+        for (Map.Entry<String, EntityUsageProfile> entry : profiles.entrySet()) {
+            String entityName = entry.getKey();
+            EntityUsageProfile profile = entry.getValue();
+            String tableName = profile.getEntity().getEffectiveTableName();
             
-            for (AnalyzedQuery query : analyzedQueries) {
-                String operationType = query.getOperationType();
-                List<String> tables = query.getTablesAccessed();
-                long execCount = query.getExecutionCount();
-                
-                for (String table : tables) {
-                    if ("SELECT".equals(operationType)) {
-                        tableReadCounts.merge(table, execCount, Long::sum);
-                    } else if ("INSERT".equals(operationType) || "UPDATE".equals(operationType) || 
-                               "DELETE".equals(operationType)) {
-                        tableWriteCounts.merge(table, execCount, Long::sum);
+            long reads = tableReadCounts.getOrDefault(tableName, 0L);
+            long writes = tableWriteCounts.getOrDefault(tableName, 0L);
+            
+            // Also try case-insensitive match
+            if (reads == 0 && writes == 0) {
+                for (Map.Entry<String, Long> readEntry : tableReadCounts.entrySet()) {
+                    if (readEntry.getKey().equalsIgnoreCase(tableName)) {
+                        reads = readEntry.getValue();
+                        break;
+                    }
+                }
+                for (Map.Entry<String, Long> writeEntry : tableWriteCounts.entrySet()) {
+                    if (writeEntry.getKey().equalsIgnoreCase(tableName)) {
+                        writes = writeEntry.getValue();
+                        break;
                     }
                 }
             }
             
-            // Update production read/write ratios in profiles
-            for (Map.Entry<String, EntityUsageProfile> entry : profiles.entrySet()) {
-                String entityName = entry.getKey();
-                EntityUsageProfile profile = entry.getValue();
-                String tableName = profile.getEntity().getEffectiveTableName();
-                
-                long reads = tableReadCounts.getOrDefault(tableName, 0L);
-                long writes = tableWriteCounts.getOrDefault(tableName, 0L);
-                
-                // Also try case-insensitive match
-                if (reads == 0 && writes == 0) {
-                    for (Map.Entry<String, Long> readEntry : tableReadCounts.entrySet()) {
-                        if (readEntry.getKey().equalsIgnoreCase(tableName)) {
-                            reads = readEntry.getValue();
-                            break;
-                        }
-                    }
-                    for (Map.Entry<String, Long> writeEntry : tableWriteCounts.entrySet()) {
-                        if (writeEntry.getKey().equalsIgnoreCase(tableName)) {
-                            writes = writeEntry.getValue();
-                            break;
-                        }
-                    }
+            if (writes > 0) {
+                profile.setProductionReadWriteRatio((double) reads / writes);
+            } else if (reads > 0) {
+                profile.setProductionReadWriteRatio(reads);
+            }
+            
+            log.debug("Entity '{}' with table '{}': reads={}, writes={}", 
+                     entityName, tableName, reads, writes);
+        }
+    }
+
+    private static void calculateTableReadWriteCounts(List<AnalyzedQuery> analyzedQueries, Map<String, Long> tableReadCounts, Map<String, Long> tableWriteCounts) {
+        for (AnalyzedQuery query : analyzedQueries) {
+            String operationType = query.getOperationType();
+            List<String> tables = query.getTablesAccessed();
+            long execCount = query.getExecutionCount();
+            
+            for (String table : tables) {
+                if ("SELECT".equals(operationType)) {
+                    tableReadCounts.merge(table, execCount, Long::sum);
+                } else if ("INSERT".equals(operationType) || "UPDATE".equals(operationType) || 
+                           "DELETE".equals(operationType)) {
+                    tableWriteCounts.merge(table, execCount, Long::sum);
                 }
-                
-                if (writes > 0) {
-                    profile.setProductionReadWriteRatio((double) reads / writes);
-                } else if (reads > 0) {
-                    profile.setProductionReadWriteRatio(reads);
-                }
-                
-                log.debug("Entity '{}' with table '{}': reads={}, writes={}", 
-                         entityName, tableName, reads, writes);
             }
         }
     }
@@ -324,6 +298,60 @@ public class DotNetPatternAnalyzer {
         // Finally, integrate co-access patterns from Query Store (if available)
         if (productionMetrics != null) {
             integrateProductionCoAccessPatterns(productionMetrics);
+        }
+    }
+    
+    /**
+     * Processes table combinations from Query Store metrics, updating production execution counts
+     * and co-access patterns.
+     */
+    private void processTableCombinations(List<TableCombination> frequentCombinations,
+                                        Map<String, String> tableToEntityMap,
+                                        Map<String, EntityUsageProfile> profiles) {
+        for (TableCombination combo : frequentCombinations) {
+            List<String> tables = combo.getTables();
+            long executions = combo.getTotalExecutions();
+            
+            // First pass: update execution counts for all tables in combination
+            for (String table : tables) {
+                String entityName = tableToEntityMap.get(table);
+                if (entityName == null) {
+                    entityName = tableToEntityMap.get(table.toLowerCase());
+                }
+                
+                if (entityName != null) {
+                    EntityUsageProfile profile = profiles.get(entityName);
+                    if (profile != null) {
+                        profile.setProductionExecutionCount(
+                            profile.getProductionExecutionCount() + executions);
+                    }
+                }
+            }
+            
+            // Second pass: record co-access relationships
+            for (String table : tables) {
+                String entityName = tableToEntityMap.get(table);
+                if (entityName == null) {
+                    entityName = tableToEntityMap.get(table.toLowerCase());
+                }
+                
+                if (entityName != null) {
+                    EntityUsageProfile profile = profiles.get(entityName);
+                    if (profile != null) {
+                        for (String otherTable : tables) {
+                            if (!otherTable.equals(table)) {
+                                String otherEntity = tableToEntityMap.get(otherTable);
+                                if (otherEntity == null) {
+                                    otherEntity = tableToEntityMap.get(otherTable.toLowerCase());
+                                }
+                                if (otherEntity != null) {
+                                    profile.addCoAccessedEntity(otherEntity, (int) executions);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
     

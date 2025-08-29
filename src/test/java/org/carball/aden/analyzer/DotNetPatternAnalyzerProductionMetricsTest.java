@@ -235,6 +235,114 @@ public class DotNetPatternAnalyzerProductionMetricsTest {
                 1, queries, queryStoreMetrics);
     }
 
+    @Test
+    void shouldNotOverCountExecutionsInTableCombinations() {
+        // Create production metrics with a single table combination
+        List<AnalyzedQuery> queries = new ArrayList<>();
+        
+        QueryStoreMetrics queryStoreMetrics = new QueryStoreMetrics();
+        queryStoreMetrics.setTotalExecutions(1000L);
+
+        List<TableCombination> frequentCombinations = new ArrayList<>();
+        
+        // Single combination with 3 tables and 500 executions
+        TableCombination combo = new TableCombination();
+        combo.setTables(Arrays.asList("Customer", "Order", "CustomerProfile"));
+        combo.setTotalExecutions(500L);
+        combo.setExecutionPercentage(50.0);
+        frequentCombinations.add(combo);
+
+        TableAccessPatterns tablePatterns = new TableAccessPatterns(frequentCombinations, true);
+        queryStoreMetrics.setTableAccessPatterns(tablePatterns);
+
+        QueryStoreAnalysis productionMetrics = new QueryStoreAnalysis(
+                "TestDB", "QUERY_STORE_TEST", new Date(), 1, queries, queryStoreMetrics);
+
+        // Analyze patterns with production metrics
+        AnalysisResult result = analyzer.analyzePatterns(
+                entities, queryPatterns, schema, dbSetMapping, productionMetrics);
+
+        // Each entity should have exactly 500 production executions (not 1500 or 1000)
+        EntityUsageProfile customerProfile = result.usageProfiles().get("Customer");
+        EntityUsageProfile orderProfile = result.usageProfiles().get("Order");
+        EntityUsageProfile profileProfile = result.usageProfiles().get("CustomerProfile");
+
+        assertThat(customerProfile.getProductionExecutionCount()).isEqualTo(500L);
+        assertThat(orderProfile.getProductionExecutionCount()).isEqualTo(500L);
+        assertThat(profileProfile.getProductionExecutionCount()).isEqualTo(500L);
+
+        // Each entity should have the other two as co-accessed entities with 500 executions each
+        assertThat(customerProfile.getCoAccessedEntities())
+                .containsEntry("Order", 500)
+                .containsEntry("CustomerProfile", 500);
+        
+        assertThat(orderProfile.getCoAccessedEntities())
+                .containsEntry("Customer", 500)
+                .containsEntry("CustomerProfile", 500);
+        
+        assertThat(profileProfile.getCoAccessedEntities())
+                .containsEntry("Customer", 500)
+                .containsEntry("Order", 500);
+    }
+
+    @Test
+    void shouldHandleMultipleTableCombinationsCorrectly() {
+        // Create production metrics with two separate table combinations
+        List<AnalyzedQuery> queries = new ArrayList<>();
+        
+        QueryStoreMetrics queryStoreMetrics = new QueryStoreMetrics();
+        queryStoreMetrics.setTotalExecutions(1500L);
+
+        List<TableCombination> frequentCombinations = new ArrayList<>();
+        
+        // First combination: Customer + Order (300 executions)
+        TableCombination combo1 = new TableCombination();
+        combo1.setTables(Arrays.asList("Customer", "Order"));
+        combo1.setTotalExecutions(300L);
+        combo1.setExecutionPercentage(20.0);
+        frequentCombinations.add(combo1);
+        
+        // Second combination: Customer + CustomerProfile (700 executions)
+        TableCombination combo2 = new TableCombination();
+        combo2.setTables(Arrays.asList("Customer", "CustomerProfile"));
+        combo2.setTotalExecutions(700L);
+        combo2.setExecutionPercentage(46.7);
+        frequentCombinations.add(combo2);
+
+        TableAccessPatterns tablePatterns = new TableAccessPatterns(frequentCombinations, true);
+        queryStoreMetrics.setTableAccessPatterns(tablePatterns);
+
+        QueryStoreAnalysis productionMetrics = new QueryStoreAnalysis(
+                "TestDB", "QUERY_STORE_TEST", new Date(), 1, queries, queryStoreMetrics);
+
+        // Analyze patterns with production metrics
+        AnalysisResult result = analyzer.analyzePatterns(
+                entities, queryPatterns, schema, dbSetMapping, productionMetrics);
+
+        // Customer appears in both combinations, so should have 300 + 700 = 1000 executions
+        EntityUsageProfile customerProfile = result.usageProfiles().get("Customer");
+        assertThat(customerProfile.getProductionExecutionCount()).isEqualTo(1000L);
+        
+        // Order appears in only first combination, so should have 300 executions
+        EntityUsageProfile orderProfile = result.usageProfiles().get("Order");
+        assertThat(orderProfile.getProductionExecutionCount()).isEqualTo(300L);
+        
+        // CustomerProfile appears in only second combination, so should have 700 executions
+        EntityUsageProfile profileProfile = result.usageProfiles().get("CustomerProfile");
+        assertThat(profileProfile.getProductionExecutionCount()).isEqualTo(700L);
+
+        // Check co-access relationships
+        assertThat(customerProfile.getCoAccessedEntities())
+                .containsEntry("Order", 300)
+                .containsEntry("CustomerProfile", 700);
+        
+        assertThat(orderProfile.getCoAccessedEntities())
+                .containsEntry("Customer", 300);
+        
+        assertThat(profileProfile.getCoAccessedEntities())
+                .containsEntry("Customer", 700);
+    }
+
     private DenormalizationCandidate findCandidate(List<DenormalizationCandidate> candidates, String entityName) {
         return candidates.stream()
                 .filter(c -> c.getPrimaryEntity().equals(entityName))
