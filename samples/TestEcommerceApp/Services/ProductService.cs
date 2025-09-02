@@ -19,7 +19,7 @@ namespace TestEcommerceApp.Services
         public List<Product> GetProductsByCategory(string category)
         {
             return _context.Product
-                .Where(p => p.Category == category)
+                .Where(p => p.Category != null && p.Category == category)
                 .OrderBy(p => p.Price)
                 .ToList();
         }
@@ -57,6 +57,7 @@ namespace TestEcommerceApp.Services
         public List<string> GetProductCategories()
         {
             return _context.Product
+                .Where(p => p.Category != null)
                 .Select(p => p.Category)
                 .Distinct()
                 .OrderBy(c => c)
@@ -112,8 +113,7 @@ namespace TestEcommerceApp.Services
             return _context.Product
                 .Where(p => p.Name == "Test Product" &&
                            p.Price >= 99.99m &&
-                           p.Id == 42 &&
-                           p.IsActive == true)
+                           p.Id == 42)
                 .ToList();
         }
 
@@ -154,7 +154,7 @@ namespace TestEcommerceApp.Services
         }
 
         // GroupBy patterns with projections
-        public var GetPriceStatsByCategory()
+        public object GetPriceStatsByCategory()
         {
             return _context.Product
                 .GroupBy(p => p.Category)
@@ -170,7 +170,7 @@ namespace TestEcommerceApp.Services
                 .ToList();
         }
 
-        public var GetProductCountByPriceRange()
+        public object GetProductCountByPriceRange()
         {
             return _context.Product
                 .GroupBy(p => p.Price < 100 ? "Budget" : p.Price < 500 ? "Mid" : "Premium")

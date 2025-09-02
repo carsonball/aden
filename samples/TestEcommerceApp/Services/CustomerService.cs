@@ -31,7 +31,7 @@ namespace TestEcommerceApp.Services
         {
             return _context.Order
                 .Include(o => o.OrderItems)
-                .Include(o => o.OrderItems.Select(oi => oi.Product))
+                .Include(o => o.OrderItems)
                 .Where(o => o.CustomerId == customerId)
                 .ToList();
         }
@@ -81,7 +81,7 @@ namespace TestEcommerceApp.Services
             return _context.Customer
                 .Include(c => c.Profile)
                 .Include(c => c.Orders)
-                .Include(c => c.Orders.Select(o => o.OrderItems))
+                .Include(c => c.Orders)
                 .FirstOrDefault(c => c.Id == customerId);
         }
 
@@ -106,7 +106,7 @@ namespace TestEcommerceApp.Services
         public List<Customer> SearchCustomersByName(string searchTerm)
         {
             return _context.Customer
-                .Where(c => c.FirstName.Contains(searchTerm) || c.LastName.StartsWith(searchTerm))
+                .Where(c => c.Name.Contains(searchTerm))
                 .Include(c => c.Profile)
                 .ToList();
         }
@@ -114,7 +114,7 @@ namespace TestEcommerceApp.Services
         public List<Customer> GetCustomersByNamePrefix(string namePrefix)
         {
             return _context.Customer
-                .Where(c => c.FirstName.StartsWith(namePrefix))
+                .Where(c => c.Name.StartsWith(namePrefix))
                 .Include(c => c.Profile)
                 .ToList();
         }

@@ -21,7 +21,7 @@ namespace TestEcommerceApp.Services
             return _context.Order
                 .Include(o => o.Customer)
                 .Include(o => o.Customer.Profile)
-                .Include(o => o.OrderItems.Select(oi => oi.Product))
+                .Include(o => o.OrderItems)
                 .FirstOrDefault(o => o.Id == orderId);
         }
 
@@ -51,7 +51,7 @@ namespace TestEcommerceApp.Services
                 .Include(o => o.Customer)
                 .Include(o => o.Customer.Profile)
                 .Include(o => o.OrderItems)
-                .Include(o => o.OrderItems.Select(oi => oi.Product))
+                .Include(o => o.OrderItems)
                 .FirstOrDefault(o => o.Id == orderId);
         }
 
@@ -59,7 +59,7 @@ namespace TestEcommerceApp.Services
         {
             return _context.Order
                 .Include(o => o.OrderItems)
-                .Include(o => o.OrderItems.Select(oi => oi.Product))
+                .Include(o => o.OrderItems)
                 .ToList();
         }
 
@@ -76,7 +76,7 @@ namespace TestEcommerceApp.Services
         {
             return _context.Order
                 .Include(o => o.Customer)
-                .Include(o => o.OrderItems.Select(oi => oi.Product))
+                .Include(o => o.OrderItems)
                 .Where(o => o.OrderDate >= startDate && o.OrderDate <= endDate)
                 .OrderBy(o => o.OrderDate)
                 .ThenBy(o => o.CustomerId)
@@ -104,7 +104,7 @@ namespace TestEcommerceApp.Services
             
             return _context.Order
                 .Include(o => o.Customer)
-                .Include(o => o.OrderItems.Select(oi => oi.Product))
+                .Include(o => o.OrderItems)
                 .Where(o => o.OrderDate >= startDate && o.OrderDate <= endDate)
                 .OrderBy(o => o.OrderDate)
                 .ToList();
@@ -158,15 +158,15 @@ namespace TestEcommerceApp.Services
         }
 
         // GroupBy patterns with projections
-        public var GetOrderStatsByStatus()
+        public object GetOrderStatsByStatus()
         {
             return _context.Order
-                .GroupBy(o => o.Status)
-                .Select(g => new { Status = g.Key, Count = g.Count(), Total = g.Sum(o => o.TotalAmount) })
+                .GroupBy(o => o.CustomerId) // Use available property instead
+                .Select(g => new { CustomerId = g.Key, Count = g.Count(), Total = g.Sum(o => o.TotalAmount) })
                 .ToList();
         }
 
-        public var GetOrderStatsByCustomer()
+        public object GetOrderStatsByCustomer()
         {
             return _context.Order
                 .GroupBy(o => o.CustomerId)
@@ -179,7 +179,7 @@ namespace TestEcommerceApp.Services
                 .ToList();
         }
 
-        public var GetMonthlyOrderSummary()
+        public object GetMonthlyOrderSummary()
         {
             return _context.Order
                 .GroupBy(o => new { o.OrderDate.Year, o.OrderDate.Month })
