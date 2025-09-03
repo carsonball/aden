@@ -97,3 +97,5 @@ mvn test -Dtest=MinimalTests # Quick smoke tests
 - Java 17+
 - Maven 3.6+
 - OpenAI API key (for AI features)
+
+**Development:** MCP server available at `aden-dev-mcp/` for enhanced tooling integration
