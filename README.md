@@ -63,9 +63,26 @@ export OPENAI_API_KEY=sk-your-api-key  # For AI recommendations
 # Start test database with sample data
 docker-compose up -d
 
-# Try the included test application  
+# Basic analysis (static code only)
 java -Dskip.ai=true -jar target/dotnet-aws-migration-analyzer-1.0.0-jar-with-dependencies.jar \
     samples/TestEcommerceApp/schema.sql samples/TestEcommerceApp/
+
+# Generate Query Store data by running TestEcommerceApp simulation
+cd samples/TestEcommerceApp
+dotnet build
+./bin/Debug/TestEcommerceApp.exe
+
+# With simulated Query Store data:
+# 1. Run scripts/export-query-store.sql in SSMS against test database
+# 2. Copy JSON output to query-store-export.json  
+# 3. Run analyzer with usage patterns
+java -Dskip.ai=true -jar target/dotnet-aws-migration-analyzer-1.0.0-jar-with-dependencies.jar \
+    samples/TestEcommerceApp/schema.sql samples/TestEcommerceApp/ --query-store-file query-store-export.json
+
+# Full analysis with AI recommendations + Terraform
+export OPENAI_API_KEY=sk-...
+java -jar target/dotnet-aws-migration-analyzer-1.0.0-jar-with-dependencies.jar \
+    samples/TestEcommerceApp/schema.sql samples/TestEcommerceApp/ --query-store-file query-store-export.json --terraform
 ```
 
 ## Example Output
