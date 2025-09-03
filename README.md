@@ -7,10 +7,10 @@ Analyzes .NET Framework applications and SQL Server usage patterns to generate A
 
 ## Key Features
 
-- **Static Code Analysis**: Parses C# models and LINQ queries to identify data access patterns
-- **SQL Server Query Store Integration**: Analyzes real production query patterns and co-access relationships  
-- **AI Migration Recommendations**: GPT-4 powered analysis generates specific DynamoDB/DocumentDB/Neptune designs
-- **Terraform Generation**: Creates ready-to-deploy AWS infrastructure code
+- **Multi-Source Analysis**: Parses SQL schema, C# Entity Framework models, and LINQ query patterns
+- **SQL Server Query Store Integration**: Analyzes real production usage patterns and entity co-access data
+- **AI-Powered DynamoDB Design**: GPT-4 generates single-table designs with partition keys, GSIs, and access patterns
+- **Infrastructure as Code**: Outputs ready-to-deploy Terraform for DynamoDB tables and indexes
 
 ## Quick Start
 
@@ -67,23 +67,26 @@ java -Dskip.ai=true -jar target/dotnet-aws-migration-analyzer-1.0.0-jar-with-dep
 
 ## Example Output
 
+**Customer entity scores 190 with detailed DynamoDB design:**
 ```json
 {
-  "migrationCandidates": [{
-    "primaryEntity": "Customer", 
-    "relatedEntities": ["Orders", "OrderItems"],
-    "score": 135,
-    "scoreInterpretation": "Strong candidate - high priority",
-    "recommendation": {
-      "targetService": "DynamoDB",
-      "partitionKey": "customerId",
-      "estimatedCostSaving": "65% reduction vs SQL Server"
-    }
-  }]
+  "primaryEntity": "Customer",
+  "score": 190,
+  "recommendation": {
+    "tableName": "CustomerData",
+    "partitionKey": { "attribute": "customerId", "type": "S" },
+    "sortKey": { "attribute": "entityType#timestamp", "type": "S" },
+    "globalSecondaryIndexes": [{
+      "indexName": "EmailIndex",
+      "partitionKey": "email"
+    }]
+  }
 }
 ```
 
-**Migration Priority Scores:** 150+ (immediate), 100-149 (high), 60-99 (medium), 30-59 (low)
+**Plus Terraform infrastructure:** `samples/output/` contains complete DynamoDB table definitions
+
+**Scoring:** 150+ (immediate), 100-149 (high), 60-99 (medium), 30-59 (low)
 
 ## Testing
 

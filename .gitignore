@@ -79,8 +79,8 @@ pids
 *.seed
 
 # Aden
-/query-store-export.json
-/recommendations.json
-/main.tf
-/outputs.tf
-/variables.tf
+/samples/output/query-store-export.json
+/samples/output/recommendations.json
+/samples/output/main.tf
+/samples/output/outputs.tf
+/samples/output/variables.tf

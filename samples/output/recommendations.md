@@ -1,20 +1,20 @@
 # .NET Framework to AWS NoSQL Migration Analysis Report
 
-**Generated:** 2025-08-15T22:57:31.4794076  
+**Generated:** 2025-09-02T18:46:14.9231548  
 **Analyzer Version:** 1.0.0  
 
 ## Executive Summary
 
-Your .NET Framework application analysis identified **2 entities** suitable for NoSQL migration. The analysis found **2 high-priority** (low complexity) migrations. The most common pattern identified was eager loading of related entities, which maps well to NoSQL document structures.
+Your .NET Framework application analysis identified **6 entities** suitable for NoSQL migration. The analysis found **5 high-priority** (low complexity) migrations. The most common pattern identified was eager loading of related entities, which maps well to NoSQL document structures.
 
 ## Analysis Overview
 
 | Metric | Value |
 |--------|-------|
-| Entities Analyzed | 4 |
-| Query Patterns Found | 16 |
-| Denormalization Candidates | 2 |
-| Recommendations Generated | 2 |
+| Entities Analyzed | 6 |
+| Query Patterns Found | 34 |
+| Denormalization Candidates | 6 |
+| Recommendations Generated | 6 |
 
 ### Migration Score Guide
 
@@ -31,17 +31,49 @@ Your .NET Framework application analysis identified **2 entities** suitable for 
 ### Customer
 
 - **Complexity:** LOW
-- **Score:** 51 (Fair candidate - low priority)
-- **Reason:** High frequency eager loading (16 occurrences); Always loaded with: Profile; Read-heavy access pattern (ratio: 25.0:1); Complex eager loading patterns (1 complex queries)
-- **Related Entities:** Profile
+- **Score:** 190 (Excellent candidate - migrate immediately)
+- **Reason:** Eager loading patterns (3 occurrences); Always loaded with: Orders, Profile; Read-heavy access pattern (ratio: 5.0:1); Complex eager loading patterns (1 complex queries)
+- **Related Entities:** Order, Orders, OrderItem, CustomerProfile, Profile
+- **Recommended Target:** Amazon DynamoDB
+
+### CustomerProfile
+
+- **Complexity:** LOW
+- **Score:** 147 (Strong candidate - high priority)
+- **Reason:** 
+- **Related Entities:** Customer
 - **Recommended Target:** Amazon DynamoDB
 
 ### Order
 
+- **Complexity:** MEDIUM
+- **Score:** 70 (Good candidate - medium priority)
+- **Reason:** Eager loading patterns (3 occurrences); Always loaded with: OrderItems, Customer; Read-heavy access pattern (ratio: 5.0:1); Complex eager loading patterns (1 complex queries)
+- **Related Entities:** OrderItems, Customer, OrderItem
+- **Recommended Target:** Amazon DynamoDB
+
+### OrderItem
+
 - **Complexity:** LOW
-- **Score:** 39 (Fair candidate - low priority)
-- **Reason:** High frequency eager loading (14 occurrences); Read-heavy access pattern (ratio: 21.0:1); Complex eager loading patterns (1 complex queries)
-- **Related Entities:** 
+- **Score:** 42 (Fair candidate - low priority)
+- **Reason:** 
+- **Related Entities:** Order, Customer
+- **Recommended Target:** Amazon DynamoDB
+
+### Category
+
+- **Complexity:** LOW
+- **Score:** 21 (Poor candidate - reconsider approach)
+- **Reason:** Eager loading patterns (1 occurrences); Always loaded with: Products
+- **Related Entities:** Products
+- **Recommended Target:** Amazon DynamoDB
+
+### Product
+
+- **Complexity:** LOW
+- **Score:** 21 (Poor candidate - reconsider approach)
+- **Reason:** Eager loading patterns (1 occurrences); Always loaded with: Categories
+- **Related Entities:** Categories
 - **Recommended Target:** Amazon DynamoDB
 
 ## Detailed Recommendations
@@ -88,7 +120,7 @@ Your .NET Framework application analysis identified **2 entities** suitable for 
 - Denormalization improves read performance but requires careful update orchestration
 - GSI costs offset by elimination of join operations
 
-### 2. Order → Amazon DynamoDB
+### 2. CustomerProfile → Amazon DynamoDB
 
 #### Migration Details
 
@@ -102,39 +134,175 @@ Your .NET Framework application analysis identified **2 entities** suitable for 
 - Examples: CUST789, CUST101
 
 **Sort Key:**
-- Attribute: `entityType#orderId`
+- Attribute: `entityType#timestamp`
 - Type: S
-- Examples: ORDER#ORD123, ORDERITEM#ORD123#ITEM456
+- Examples: PROFILE#2024-02-20, PROFILE#2024-02-21
 
 #### Design Rationale
 
-**Denormalization Strategy:** Incorporated Order and OrderItem entities into the Customer table to exploit single-table benefits and reduce operational complexity
+**Denormalization Strategy:** Included in the Customer entity's single-table design to leverage co-access patterns and simplify queries
 
-**Key Design Justification:** Using customerId as partition key across entities simplifies access patterns and leverages DynamoDB's strength in handling key-value lookups
+**Key Design Justification:** Using customerId as partition key for consistent access pattern across Customer and CustomerProfile entities
 
-**Relationship Handling:** Composite sort key enables hierarchical access patterns within a single partition, facilitating efficient retrieval of orders and their items
+**Relationship Handling:** Direct relationship with Customer entity is naturally modeled in a single-table design
 
-**Performance Optimizations:** Design focused on minimizing read latency and optimizing query patterns specific to order retrieval and aggregation
+**Performance Optimizations:** Leveraging the existing CustomerData table design to minimize additional overhead
 
-**Access Pattern Analysis:** Given the read-heavy nature and frequent co-access with Customer data, embedding Order information supports efficient single-point queries
+**Access Pattern Analysis:** Given the high co-access rate with Customer, including CustomerProfile in the same table optimizes for read performance
 
 **Trade-offs Considered:**
-- Increased complexity in data modeling and application logic to handle single-table design
-- Potential for larger item sizes, necessitating careful monitoring of DynamoDB size limits
-- Optimization for read patterns may complicate write operations, especially in high-throughput scenarios
+- Increased complexity in managing single table for multiple entities
+- Potential for larger item sizes, but offset by reduced need for joins and separate queries
+
+### 3. Order → Amazon DynamoDB
+
+#### Migration Details
+
+- **Table/Collection Name:** `ApplicationData`
+
+#### Key Design
+
+**Partition Key:**
+- Attribute: `customerId`
+- Type: S
+- Examples: CUST234, CUST567
+
+**Sort Key:**
+- Attribute: `entityType#orderId`
+- Type: S
+- Examples: ORDER#ORD123, ORDER#ORD456
+
+#### Design Rationale
+
+**Denormalization Strategy:** Orders included with Customer in a single-table design to optimize for frequent co-access patterns
+
+**Key Design Justification:** CustomerId as partition key supports efficient retrieval of orders by customer; entityType#orderId sort key enables order-specific queries
+
+**Relationship Handling:** Embedding OrderItems within Order records to minimize read operations and simplify data retrieval
+
+**Performance Optimizations:** Avoiding separate tables for Orders and OrderItems to reduce query complexity and improve read efficiency
+
+**Access Pattern Analysis:** High read-to-write ratio and frequent access with Customer entity justify single-table design
+
+**Trade-offs Considered:**
+- Potential increase in item size due to embedding OrderItems, but benefits from reduced query complexity
+- Single-table design complexity versus ease of access and performance gains
+
+### 4. OrderItem → Amazon DynamoDB
+
+#### Migration Details
+
+- **Table/Collection Name:** `ApplicationData`
+
+#### Key Design
+
+**Partition Key:**
+- Attribute: `customerId`
+- Type: S
+- Examples: CUST890, CUST012
+
+**Sort Key:**
+- Attribute: `entityType#orderId#orderItemId`
+- Type: S
+- Examples: ORDERITEM#ORD123#ITEM456, ORDERITEM#ORD789#ITEM012
+
+#### Design Rationale
+
+**Denormalization Strategy:** Embedding OrderItems within Orders to streamline data retrieval and reduce the need for separate queries
+
+**Key Design Justification:** Composite sort key allows for efficient retrieval of specific OrderItems within an Order
+
+**Relationship Handling:** Maintains the MANY_TO_ONE relationship with Orders within a single table, simplifying data management
+
+**Performance Optimizations:** Reduces the need for separate tables and queries, optimizing for read operations
+
+**Access Pattern Analysis:** Given the integral role of OrderItems in order processing, embedding within Orders supports efficient access
+
+**Trade-offs Considered:**
+- Increased complexity in item structure, but with significant benefits in query efficiency
+- Embedding limits flexibility for OrderItem updates, but aligns with the primary access patterns
+
+### 5. Category → Amazon DynamoDB
+
+#### Migration Details
+
+- **Table/Collection Name:** `ProductData`
+
+#### Key Design
+
+**Partition Key:**
+- Attribute: `categoryId`
+- Type: S
+- Examples: CAT123, CAT456
+
+**Sort Key:**
+- Attribute: `entityType#name`
+- Type: S
+- Examples: CATEGORY#Electronics, CATEGORY#Books
+
+#### Design Rationale
+
+**Denormalization Strategy:** Maintained as a separate entity due to distinct access patterns from core Customer-Order data
+
+**Key Design Justification:** CategoryId as partition key supports direct lookups; entityType#name sort key enables efficient category name queries
+
+**Relationship Handling:** ONE_TO_MANY relationship with Products managed through category references within Product items
+
+**Performance Optimizations:** Separate table optimizes category-specific queries without impacting the performance of the unified Customer-Order table
+
+**Access Pattern Analysis:** Distinct access patterns and lower co-access frequency with Customer and Order entities
+
+**Trade-offs Considered:**
+- Separate table increases complexity but allows for optimized category management and queries
+- Maintains flexibility for category-specific updates and queries without impacting the primary Customer-Order data model
+
+### 6. Product → Amazon DynamoDB
+
+#### Migration Details
+
+- **Table/Collection Name:** `ProductData`
+
+#### Key Design
+
+**Partition Key:**
+- Attribute: `productId`
+- Type: S
+- Examples: PROD123, PROD456
+
+**Sort Key:**
+- Attribute: `entityType#category`
+- Type: S
+- Examples: PRODUCT#Electronics, PRODUCT#Books
+
+#### Design Rationale
+
+**Denormalization Strategy:** Maintained as a separate entity due to distinct access patterns from core Customer-Order data
+
+**Key Design Justification:** ProductId as partition key supports direct lookups; entityType#category sort key enables efficient queries by category
+
+**Relationship Handling:** ONE_TO_MANY relationship with Categories reflected in sort key, facilitating category-based product queries
+
+**Performance Optimizations:** Separate table for Products allows for efficient management and querying of product data without impacting Customer-Order table performance
+
+**Access Pattern Analysis:** Product queries often involve category filtering, justifying a separate table to optimize these access patterns
+
+**Trade-offs Considered:**
+- Separate table increases complexity but allows for optimized product management and queries
+- Maintains flexibility for product-specific updates and queries without impacting the primary Customer-Order data model
 
 ## Query Pattern Analysis
 
 | Query Type | Count |
 |------------|-------|
-| ORDER_BY | 1 |
-| COLLECTION | 2 |
+| ORDER_BY | 3 |
+| COLLECTION | 4 |
 | COMPLEX_EAGER_LOADING | 2 |
-| SINGLE_ENTITY | 2 |
-| PAGINATION | 2 |
-| EAGER_LOADING | 4 |
-| WHERE_CLAUSE | 2 |
-| AGGREGATION | 1 |
+| GROUP_BY | 2 |
+| SINGLE_ENTITY | 4 |
+| PAGINATION | 4 |
+| EAGER_LOADING | 6 |
+| WHERE_CLAUSE | 4 |
+| AGGREGATION | 5 |
 
 ## Next Steps
 

@@ -1,20 +1,20 @@
 {
   "analysisMetadata" : {
-    "timestamp" : [ 2025, 8, 15, 22, 57, 31, 479407600 ],
+    "timestamp" : [ 2025, 9, 2, 18, 46, 14, 923154800 ],
     "dotnetFrameworkVersion" : "4.7.2",
     "entityFrameworkVersion" : "6.4.4",
-    "totalEntitiesAnalyzed" : 4,
-    "totalQueryPatternsFound" : 16
+    "totalEntitiesAnalyzed" : 6,
+    "totalQueryPatternsFound" : 34
   },
   "migrationCandidates" : [ {
     "primaryEntity" : "Customer",
-    "relatedEntities" : [ "Profile" ],
+    "relatedEntities" : [ "Order", "Orders", "OrderItem", "CustomerProfile", "Profile" ],
     "complexity" : "LOW",
-    "score" : 51,
-    "reason" : "High frequency eager loading (16 occurrences); Always loaded with: Profile; Read-heavy access pattern (ratio: 25.0:1); Complex eager loading patterns (1 complex queries)",
+    "score" : 190,
+    "reason" : "Eager loading patterns (3 occurrences); Always loaded with: Orders, Profile; Read-heavy access pattern (ratio: 5.0:1); Complex eager loading patterns (1 complex queries)",
     "currentPattern" : {
-      "eagerLoadingFrequency" : 16,
-      "readWriteRatio" : 25.0,
+      "eagerLoadingFrequency" : 3,
+      "readWriteRatio" : 5.0,
       "averageIncludeDepth" : 2
     },
     "recommendation" : {
@@ -50,14 +50,52 @@
       }
     }
   }, {
-    "primaryEntity" : "Order",
-    "relatedEntities" : [ ],
+    "primaryEntity" : "CustomerProfile",
+    "relatedEntities" : [ "Customer" ],
     "complexity" : "LOW",
-    "score" : 39,
-    "reason" : "High frequency eager loading (14 occurrences); Read-heavy access pattern (ratio: 21.0:1); Complex eager loading patterns (1 complex queries)",
+    "score" : 147,
+    "reason" : "",
     "currentPattern" : {
-      "eagerLoadingFrequency" : 14,
-      "readWriteRatio" : 21.0,
+      "eagerLoadingFrequency" : 0,
+      "readWriteRatio" : 0.0,
+      "averageIncludeDepth" : 1
+    },
+    "recommendation" : {
+      "primaryEntity" : "CustomerProfile",
+      "targetService" : "DYNAMODB",
+      "tableName" : "ApplicationData",
+      "partitionKey" : {
+        "attribute" : "customerId",
+        "type" : "S",
+        "description" : "Unique customer identifier, shared with Customer entity",
+        "examples" : [ "CUST789", "CUST101" ]
+      },
+      "sortKey" : {
+        "attribute" : "entityType#timestamp",
+        "type" : "S",
+        "description" : "Composite key for entity type and timestamp, shared with Customer entity",
+        "examples" : [ "PROFILE#2024-02-20", "PROFILE#2024-02-21" ]
+      },
+      "globalSecondaryIndexes" : [ ],
+      "schemaDesign" : "Target Service: DynamoDB\nJustification: Low complexity and high co-access frequency with Customer entity\n\nTable Design:\n- Table Name: ApplicationData\n- Partition Key: customerId (S)\n- Sort Key: entityType#timestamp (S)\n\nSingle Table Design:\n- Shared Table: ApplicationData\n- Entity Discriminator: entityType\n- Rationale: Shared access pattern with Customer entity\n",
+      "designRationale" : {
+        "denormalizationStrategy" : "Included in the Customer entity's single-table design to leverage co-access patterns and simplify queries",
+        "keyDesignJustification" : "Using customerId as partition key for consistent access pattern across Customer and CustomerProfile entities",
+        "relationshipHandling" : "Direct relationship with Customer entity is naturally modeled in a single-table design",
+        "performanceOptimizations" : "Leveraging the existing CustomerData table design to minimize additional overhead",
+        "accessPatternAnalysis" : "Given the high co-access rate with Customer, including CustomerProfile in the same table optimizes for read performance",
+        "tradeoffsConsidered" : [ "Increased complexity in managing single table for multiple entities", "Potential for larger item sizes, but offset by reduced need for joins and separate queries" ]
+      }
+    }
+  }, {
+    "primaryEntity" : "Order",
+    "relatedEntities" : [ "OrderItems", "Customer", "OrderItem" ],
+    "complexity" : "MEDIUM",
+    "score" : 70,
+    "reason" : "Eager loading patterns (3 occurrences); Always loaded with: OrderItems, Customer; Read-heavy access pattern (ratio: 5.0:1); Complex eager loading patterns (1 complex queries)",
+    "currentPattern" : {
+      "eagerLoadingFrequency" : 3,
+      "readWriteRatio" : 5.0,
       "averageIncludeDepth" : 2
     },
     "recommendation" : {
@@ -67,24 +105,138 @@
       "partitionKey" : {
         "attribute" : "customerId",
         "type" : "S",
-        "description" : "Unique customer identifier, reused for Order to enable efficient querying within single table",
-        "examples" : [ "CUST789", "CUST101" ]
+        "description" : "Unique customer identifier, to align with Customer entity access patterns",
+        "examples" : [ "CUST234", "CUST567" ]
       },
       "sortKey" : {
         "attribute" : "entityType#orderId",
         "type" : "S",
-        "description" : "Composite key for entity type and order ID",
-        "examples" : [ "ORDER#ORD123", "ORDERITEM#ORD123#ITEM456" ]
+        "description" : "Composite key for entity type and unique order identifier",
+        "examples" : [ "ORDER#ORD123", "ORDER#ORD456" ]
       },
       "globalSecondaryIndexes" : [ ],
-      "schemaDesign" : "Target Service: DynamoDB\nJustification: Frequent access with Customer entity and read-heavy patterns\n\nTable Design:\n- Table Name: ApplicationData\n- Partition Key: customerId (S)\n- Sort Key: entityType#orderId (S)\n\nSingle Table Design:\n- Shared Table: ApplicationData\n- Entity Discriminator: entityType\n- Rationale: Leverages single-table design to co-locate Order data with Customer for efficient access\n\nAccess Patterns:\n- Get orders by customer ID: Retrieve all orders for a given customer\n- Get order by ID: Retrieve specific order details\n",
+      "schemaDesign" : "Target Service: DynamoDB\nJustification: Medium complexity due to nested relationships and read-heavy patterns\n\nTable Design:\n- Table Name: ApplicationData\n- Partition Key: customerId (S)\n- Sort Key: entityType#orderId (S)\n\nSingle Table Design:\n- Shared Table: ApplicationData\n- Entity Discriminator: entityType\n- Rationale: Orders are frequently accessed with Customer, supporting a unified table structure\n",
       "designRationale" : {
-        "denormalizationStrategy" : "Incorporated Order and OrderItem entities into the Customer table to exploit single-table benefits and reduce operational complexity",
-        "keyDesignJustification" : "Using customerId as partition key across entities simplifies access patterns and leverages DynamoDB's strength in handling key-value lookups",
-        "relationshipHandling" : "Composite sort key enables hierarchical access patterns within a single partition, facilitating efficient retrieval of orders and their items",
-        "performanceOptimizations" : "Design focused on minimizing read latency and optimizing query patterns specific to order retrieval and aggregation",
-        "accessPatternAnalysis" : "Given the read-heavy nature and frequent co-access with Customer data, embedding Order information supports efficient single-point queries",
-        "tradeoffsConsidered" : [ "Increased complexity in data modeling and application logic to handle single-table design", "Potential for larger item sizes, necessitating careful monitoring of DynamoDB size limits", "Optimization for read patterns may complicate write operations, especially in high-throughput scenarios" ]
+        "denormalizationStrategy" : "Orders included with Customer in a single-table design to optimize for frequent co-access patterns",
+        "keyDesignJustification" : "CustomerId as partition key supports efficient retrieval of orders by customer; entityType#orderId sort key enables order-specific queries",
+        "relationshipHandling" : "Embedding OrderItems within Order records to minimize read operations and simplify data retrieval",
+        "performanceOptimizations" : "Avoiding separate tables for Orders and OrderItems to reduce query complexity and improve read efficiency",
+        "accessPatternAnalysis" : "High read-to-write ratio and frequent access with Customer entity justify single-table design",
+        "tradeoffsConsidered" : [ "Potential increase in item size due to embedding OrderItems, but benefits from reduced query complexity", "Single-table design complexity versus ease of access and performance gains" ]
+      }
+    }
+  }, {
+    "primaryEntity" : "OrderItem",
+    "relatedEntities" : [ "Order", "Customer" ],
+    "complexity" : "LOW",
+    "score" : 42,
+    "reason" : "",
+    "currentPattern" : {
+      "eagerLoadingFrequency" : 0,
+      "readWriteRatio" : 0.0,
+      "averageIncludeDepth" : 1
+    },
+    "recommendation" : {
+      "primaryEntity" : "OrderItem",
+      "targetService" : "DYNAMODB",
+      "tableName" : "ApplicationData",
+      "partitionKey" : {
+        "attribute" : "customerId",
+        "type" : "S",
+        "description" : "Aligns with Customer and Order for unified access patterns",
+        "examples" : [ "CUST890", "CUST012" ]
+      },
+      "sortKey" : {
+        "attribute" : "entityType#orderId#orderItemId",
+        "type" : "S",
+        "description" : "Composite key for entity type, order ID, and unique order item identifier",
+        "examples" : [ "ORDERITEM#ORD123#ITEM456", "ORDERITEM#ORD789#ITEM012" ]
+      },
+      "globalSecondaryIndexes" : [ ],
+      "schemaDesign" : "Target Service: DynamoDB\nJustification: Low complexity, but integral to Order processing and retrieval\n\nTable Design:\n- Table Name: ApplicationData\n- Partition Key: customerId (S)\n- Sort Key: entityType#orderId#orderItemId (S)\n\nSingle Table Design:\n- Shared Table: ApplicationData\n- Entity Discriminator: entityType\n- Rationale: OrderItems are part of Orders, necessitating inclusion in the unified table structure\n",
+      "designRationale" : {
+        "denormalizationStrategy" : "Embedding OrderItems within Orders to streamline data retrieval and reduce the need for separate queries",
+        "keyDesignJustification" : "Composite sort key allows for efficient retrieval of specific OrderItems within an Order",
+        "relationshipHandling" : "Maintains the MANY_TO_ONE relationship with Orders within a single table, simplifying data management",
+        "performanceOptimizations" : "Reduces the need for separate tables and queries, optimizing for read operations",
+        "accessPatternAnalysis" : "Given the integral role of OrderItems in order processing, embedding within Orders supports efficient access",
+        "tradeoffsConsidered" : [ "Increased complexity in item structure, but with significant benefits in query efficiency", "Embedding limits flexibility for OrderItem updates, but aligns with the primary access patterns" ]
+      }
+    }
+  }, {
+    "primaryEntity" : "Category",
+    "relatedEntities" : [ "Products" ],
+    "complexity" : "LOW",
+    "score" : 21,
+    "reason" : "Eager loading patterns (1 occurrences); Always loaded with: Products",
+    "currentPattern" : {
+      "eagerLoadingFrequency" : 1,
+      "readWriteRatio" : 3.0,
+      "averageIncludeDepth" : 1
+    },
+    "recommendation" : {
+      "primaryEntity" : "Category",
+      "targetService" : "DYNAMODB",
+      "tableName" : "ProductData",
+      "partitionKey" : {
+        "attribute" : "categoryId",
+        "type" : "S",
+        "description" : "Unique category identifier",
+        "examples" : [ "CAT123", "CAT456" ]
+      },
+      "sortKey" : {
+        "attribute" : "entityType#name",
+        "type" : "S",
+        "description" : "Composite key for entity type and category name",
+        "examples" : [ "CATEGORY#Electronics", "CATEGORY#Books" ]
+      },
+      "globalSecondaryIndexes" : [ ],
+      "schemaDesign" : "Target Service: DynamoDB\nJustification: Low complexity and specific access patterns\n\nTable Design:\n- Table Name: ProductData\n- Partition Key: categoryId (S)\n- Sort Key: entityType#name (S)\n",
+      "designRationale" : {
+        "denormalizationStrategy" : "Maintained as a separate entity due to distinct access patterns from core Customer-Order data",
+        "keyDesignJustification" : "CategoryId as partition key supports direct lookups; entityType#name sort key enables efficient category name queries",
+        "relationshipHandling" : "ONE_TO_MANY relationship with Products managed through category references within Product items",
+        "performanceOptimizations" : "Separate table optimizes category-specific queries without impacting the performance of the unified Customer-Order table",
+        "accessPatternAnalysis" : "Distinct access patterns and lower co-access frequency with Customer and Order entities",
+        "tradeoffsConsidered" : [ "Separate table increases complexity but allows for optimized category management and queries", "Maintains flexibility for category-specific updates and queries without impacting the primary Customer-Order data model" ]
+      }
+    }
+  }, {
+    "primaryEntity" : "Product",
+    "relatedEntities" : [ "Categories" ],
+    "complexity" : "LOW",
+    "score" : 21,
+    "reason" : "Eager loading patterns (1 occurrences); Always loaded with: Categories",
+    "currentPattern" : {
+      "eagerLoadingFrequency" : 1,
+      "readWriteRatio" : 3.0,
+      "averageIncludeDepth" : 1
+    },
+    "recommendation" : {
+      "primaryEntity" : "Product",
+      "targetService" : "DYNAMODB",
+      "tableName" : "ProductData",
+      "partitionKey" : {
+        "attribute" : "productId",
+        "type" : "S",
+        "description" : "Unique product identifier",
+        "examples" : [ "PROD123", "PROD456" ]
+      },
+      "sortKey" : {
+        "attribute" : "entityType#category",
+        "type" : "S",
+        "description" : "Composite key for entity type and category association",
+        "examples" : [ "PRODUCT#Electronics", "PRODUCT#Books" ]
+      },
+      "globalSecondaryIndexes" : [ ],
+      "schemaDesign" : "Target Service: DynamoDB\nJustification: Low complexity with specific access patterns related to Categories\n\nTable Design:\n- Table Name: ProductData\n- Partition Key: productId (S)\n- Sort Key: entityType#category (S)\n",
+      "designRationale" : {
+        "denormalizationStrategy" : "Maintained as a separate entity due to distinct access patterns from core Customer-Order data",
+        "keyDesignJustification" : "ProductId as partition key supports direct lookups; entityType#category sort key enables efficient queries by category",
+        "relationshipHandling" : "ONE_TO_MANY relationship with Categories reflected in sort key, facilitating category-based product queries",
+        "performanceOptimizations" : "Separate table for Products allows for efficient management and querying of product data without impacting Customer-Order table performance",
+        "accessPatternAnalysis" : "Product queries often involve category filtering, justifying a separate table to optimize these access patterns",
+        "tradeoffsConsidered" : [ "Separate table increases complexity but allows for optimized product management and queries", "Maintains flexibility for product-specific updates and queries without impacting the primary Customer-Order data model" ]
       }
     }
   } ],
