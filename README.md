@@ -60,7 +60,10 @@ export OPENAI_API_KEY=sk-your-api-key  # For AI recommendations
 ## Sample Usage
 
 ```bash
-# Try the included test application
+# Start test database with sample data
+docker-compose up -d
+
+# Try the included test application  
 java -Dskip.ai=true -jar target/dotnet-aws-migration-analyzer-1.0.0-jar-with-dependencies.jar \
     samples/TestEcommerceApp/schema.sql samples/TestEcommerceApp/
 ```
